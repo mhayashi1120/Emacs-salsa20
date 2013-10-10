@@ -1,5 +1,7 @@
 (require 'ert)
 
+(require 'salsa20)
+
 (defun salsa20-test--hex (hex)
   (cond
    ((string-match "\\`0x\\([0-9a-fA-F]+\\)" hex)

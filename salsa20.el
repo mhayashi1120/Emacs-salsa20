@@ -58,9 +58,10 @@
   (error "TODO"))
 
 
-(defconst salsa20-word-range
-  (eval-when-compile
-    (lsh 1 32)))
+(eval-and-compile
+  (defconst salsa20-word-range
+    (eval-when-compile
+      (lsh 1 32))))
 
 (defconst salsa20-word-max
   (eval-when-compile
@@ -263,6 +264,7 @@
   (when (multibyte-string-p m)
     (error "todo Invalid string not a unibyte string"))
   (unless iv
+    ;;TODO how to detect initial vector
     (setq iv (salsa20--random-u8vector 8)))
   (let* ((i (vector 0 0 0 0 0 0 0 0))
          (n (vconcat iv i))
@@ -275,9 +277,7 @@
           (setq ms (nthcdr 64 ms))
           (unless ms
             (throw 'done t))
-          (salsa20-increment-8byte! i)
-          (aset n 2 (aref i 0))
-          (aset n 3 (aref i 1)))))
+          (salsa20-increment-ushort! n 8))))
     (apply 'unibyte-string res)))
 
 (defun salsa20--xor-list (list1 list2)
@@ -291,13 +291,12 @@
         do (aset v i (random ?\x100))
         finally return v))
 
-(defun salsa20-increment-8byte! (8byte)
-  (loop for i from 0 below 8
-        do (let ((n (logand (1+ (aref 8byte i)) ?\xff)))
-             (aset 8byte i n))
-        unless (zerop (aref 8byte i))
-        return nil)
-  8byte)
+(defun salsa20-increment-ushort! (vector start)
+  (loop repeat 8 for i from start
+        do (let ((n (logand (1+ (aref vector i)) ?\xff)))
+             (aset vector i n))
+        unless (zerop (aref vector i))
+        return nil))
 
 ;; read 64-byte -> 16-word (4x4)
 (defun salsa20-read-from-string (string pos)
