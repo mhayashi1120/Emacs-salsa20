@@ -296,7 +296,8 @@
         do (let ((n (logand (1+ (aref vector i)) ?\xff)))
              (aset vector i n))
         unless (zerop (aref vector i))
-        return nil))
+        return nil)
+  vector)
 
 ;; read 64-byte -> 16-word (4x4)
 (defun salsa20-read-from-string (string pos)
