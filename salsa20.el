@@ -314,10 +314,10 @@
         done))))
 
 ;;TODO
-;;;###autoload
-(defun salsa20-hash (object &optional coding-system start end)
-  "todo Core function to create 64-byte hash like `secure-hash'"
-  (salsa20--hash ))
+;;;;###autoload
+;; (defun salsa20-hash (object &optional coding-system start end)
+;;   "todo Core function to create 64-byte hash like `secure-hash'"
+;;   (salsa20--hash ))
 
 ;;TODO use?
 ;; read 64-byte -> 16-word (4x4)
