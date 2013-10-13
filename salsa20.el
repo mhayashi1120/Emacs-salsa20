@@ -198,10 +198,9 @@
   (loop for x across 16word
         append (salsa20--word-to-4bytes x)))
 
-(defun salsa20--read-16word (list)
+(defun salsa20--load-16word (xs list)
   ;; destructive literal vector
-  (loop with xs = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
-        for i from 0 below 16
+  (loop for i from 0 below 16
         for j from 0 by 4
         do (aset xs i (salsa20--littleendian
                        (nth (+ j 0) list)
@@ -218,7 +217,8 @@
         finally return words1))
 
 (defun salsa20--hash (x)
-  (loop with xs = (salsa20--read-16word x)
+  (loop with 16word = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+        with xs = (salsa20--load-16word 16word x)
         ;; clone working vector to preserve initial vector
         with tmp = (salsa20--clone-16word xs)
         repeat 10
@@ -286,11 +286,13 @@
    
 ;; 10. The Salsa20 encryption function
 (defun salsa20--xor-list (list1 list2)
+  ;;TODO not used
   (loop for x1 in list1
         for x2 in list2
         collect (logxor x1 x2)))
 
 (defun salsa20--random-u8vector (size)
+  ;;TODO not used or make autoload to create iv
   (loop with v = (make-vector size nil)
         for i below size
         do (aset v i (random ?\x100))
