@@ -37,6 +37,8 @@
 
 ;; http://cr.yp.to/snuffle/spec.pdf
 
+;; Salsa20/8 Salsa20/12
+
 ;;; Usage:
 ;;todo
 
@@ -67,11 +69,7 @@
       (1- salsa20-word-range))))
 
 (defun salsa20--clone-16word (16word)
-  (vector
-   (vconcat (aref 16word 0))
-   (vconcat (aref 16word 1))
-   (vconcat (aref 16word 2))
-   (vconcat (aref 16word 3))))
+  (vconcat 16word))
 
 (eval-when-compile
   (defsubst salsa20--sum (word1 word2)
@@ -106,12 +104,8 @@
 
 ;; 4. The rowround function (16-word 4x4 -> 16-word 4x4)
 (eval-when-compile
-  (defsubst salsa20--rowround! (y)
-    (let* ((y0 (aref y 0))
-           (y1 (aref y 1))
-           (y2 (aref y 2))
-           (y3 (aref y 3))
-           (generator (lambda (v j0 j1 j2 j3)
+  (defsubst salsa20--rowround! (y0 y1 y2 y3)
+    (let* ((generator (lambda (v j0 j1 j2 j3)
                         (salsa20--quarterround
                          (aref v j0) (aref v j1) (aref v j2) (aref v j3))))
            (setter (lambda (row v i0 i1 i2 i3)
@@ -123,35 +117,68 @@
       (funcall setter y1 (funcall generator y1 1 2 3 0) 3 0 1 2)
       (funcall setter y2 (funcall generator y2 2 3 0 1) 2 3 0 1)
       (funcall setter y3 (funcall generator y3 3 0 1 2) 1 2 3 0)
-      y)))
+      (vector y0 y1 y2 y3))))
 
 ;; 5. The columnround function (16-word 4x4 -> 16-word 4x4)
 (eval-when-compile
-  (defsubst salsa20--columnround! (x)
-    (let* ((x0 (aref x 0))
-           (x1 (aref x 1))
-           (x2 (aref x 2))
-           (x3 (aref x 3))
-           (generator (lambda (v0 v1 v2 v3 i)
+  (defsubst salsa20--columnround! (x0 x1 x2 x3)
+    (let* ((generator (lambda (v0 v1 v2 v3 i)
                         (salsa20--quarterround
                          (aref v0 i) (aref v1 i) (aref v2 i) (aref v3 i))))
            (setter (lambda (col v i0 i1 i2 i3)
-                     (aset (aref x 0) col (aref v i0))
-                     (aset (aref x 1) col (aref v i1))
-                     (aset (aref x 2) col (aref v i2))
-                     (aset (aref x 3) col (aref v i3)))))
+                     (aset x0 col (aref v i0))
+                     (aset x1 col (aref v i1))
+                     (aset x2 col (aref v i2))
+                     (aset x3 col (aref v i3)))))
       (funcall setter 0 (funcall generator x0 x1 x2 x3 0) 0 1 2 3)
       (funcall setter 1 (funcall generator x1 x2 x3 x0 1) 3 0 1 2)
       (funcall setter 2 (funcall generator x2 x3 x0 x1 2) 2 3 0 1)
       (funcall setter 3 (funcall generator x3 x0 x1 x2 3) 1 2 3 0)
-      x)))
+      (vector x0 x1 x2 x3))))
 
 ;; 6. The doubleround function (16-word 4x4 -> 16-word 4x4)
 (eval-when-compile
   (defsubst salsa20--doubleround! (x)
-    (salsa20--columnround! x)
-    (salsa20--rowround! x)
-    x))
+    ;; (salsa20--columnround! (substring x 0 4) (substring x 4 8) (substring x 8 12) (substring x 12 16))
+    ;; (salsa20--rowround! (substring x 0 4) (substring x 4 8) (substring x 8 12) (substring x 12 16))
+    (let ((setter
+           (lambda (target src1 src2 lshift)
+             (let* ((sum (salsa20--sum (aref x src1) (aref x src2)))
+                    (shift (salsa20--left-shift sum lshift)))
+               (aset x target (salsa20--xor (aref x target) shift))))))
+      (funcall setter  4  0 12  7)
+      (funcall setter  8  4  0  9)
+      (funcall setter 12  8  4 13)
+      (funcall setter  0 12  8 18)
+      (funcall setter  9  5  1  7)
+      (funcall setter 13  9  5  9)
+      (funcall setter  1 13  9 13)
+      (funcall setter  5  1 13 18)
+      (funcall setter 14 10  6  7)
+      (funcall setter  2 14 10  9)
+      (funcall setter  6  2 14 13)
+      (funcall setter 10  6  2 18)
+      (funcall setter  3 15 11  7)
+      (funcall setter  7  3 15  9)
+      (funcall setter 11  7  3 13)
+      (funcall setter 15 11  7 18)
+      (funcall setter  1  0  3  7)
+      (funcall setter  2  1  0  9)
+      (funcall setter  3  2  1 13)
+      (funcall setter  0  3  2 18)
+      (funcall setter  6  5  4  7)
+      (funcall setter  7  6  5  9)
+      (funcall setter  4  7  6 13)
+      (funcall setter  5  4  7 18)
+      (funcall setter 11 10  9  7)
+      (funcall setter  8 11 10  9)
+      (funcall setter  9  8 11 13)
+      (funcall setter 10  9  8 18)
+      (funcall setter 12 15 14  7)
+      (funcall setter 13 12 15  9)
+      (funcall setter 14 13 12 13)
+      (funcall setter 15 14 13 18)
+      x)))
 
 ;; 7. The littleendian function (4-byte -> 1-word)
 (defconst salsa20--byte-table
@@ -168,34 +195,26 @@
 ;;TODO unibyte-text -> unibyte list to append by block algorithm.
 ;; 8. The Salsa20 hash function (64-byte unibyte list -> 64-byte unibyte list)
 (defun salsa20--16word-to-bytes (16word)
-  (loop for word across 16word
-        append (loop for x across word
-                     append (salsa20--word-to-4bytes x))))
+  (loop for x across 16word
+        append (salsa20--word-to-4bytes x)))
 
 (defun salsa20--read-16word (list)
-  (loop ;; destructive literal vector
-        with xs = [[nil nil nil nil] [nil nil nil nil] [nil nil nil nil] [nil nil nil nil]]
-        for i from 0 below 4
-        for xi across xs
-        for top on list by (lambda (x) (nthcdr 16 x))
-        do (loop with pos = 0
-                 for j from 0 below 4
-                 do (progn
-                      (aset xi j (salsa20--littleendian
-                                  (nth (+ pos 0) top)
-                                  (nth (+ pos 1) top)
-                                  (nth (+ pos 2) top)
-                                  (nth (+ pos 3) top)))
-                      (setq pos (+ pos 4))))
+  ;; destructive literal vector
+  (loop with xs = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+        for i from 0 below 16
+        for j from 0 by 4
+        do (aset xs i (salsa20--littleendian
+                       (nth (+ j 0) list)
+                       (nth (+ j 1) list)
+                       (nth (+ j 2) list)
+                       (nth (+ j 3) list)))
         finally return xs))
 
 (defun salsa20-sum-16word! (words1 words2)
-  (loop for ws1 across words1
-        for ws2 across words2
-        collect (loop for w1 across ws1
-                      for w2 across ws2
-                      for i from 0
-                      do (aset ws1 i (salsa20--sum w1 w2)))
+  (loop for w1 across words1
+        for w2 across words2
+        for i from 0
+        do (aset words1 i (salsa20--sum w1 w2))
         finally return words1))
 
 (defun salsa20--hash (x)
@@ -215,25 +234,25 @@
         finally return x))
 
 (defun salsa20--word-to-4bytes (word)
-  (list (lsh (logand word (aref salsa20--byte-table 0)) 0)
-        (lsh (logand word (aref salsa20--byte-table 1)) -8)
+  (list (lsh (logand word (aref salsa20--byte-table 0))   0)
+        (lsh (logand word (aref salsa20--byte-table 1))  -8)
         (lsh (logand word (aref salsa20--byte-table 2)) -16)
         (lsh (logand word (aref salsa20--byte-table 3)) -24)))
 
 ;; 9. The Salsa20 expansion function
 (defconst salsa20--sigma
   [
-   [101 120 112 97]
-   [110 100 32 51]
-   [50 45 98 121]
-   [116 101 32 107]])
+   [101 120 112  97]
+   [110 100  32  51]
+   [ 50  45  98 121]
+   [116 101  32 107]])
 
 (defconst salsa20--tau
   [
-   [101 120 112 97]
-   [110 100 32 49]
-   [54 45 98 121]
-   [116 101 32 107]])
+   [101 120 112  97]
+   [110 100  32  49]
+   [ 54  45  98 121]
+   [116 101  32 107]])
 
 (defun salsa20-expansion (k n)
   (unless (= (length n) 16)
@@ -330,8 +349,8 @@
                  for j from 0 below 4
                  do (progn
                       (aset v2 j (logior
-                                  (lsh (aref string (+ pos 0)) 0)
-                                  (lsh (aref string (+ pos 1)) 8)
+                                  (lsh (aref string (+ pos 0))  0)
+                                  (lsh (aref string (+ pos 1))  8)
                                   (lsh (aref string (+ pos 2)) 16)
                                   (lsh (aref string (+ pos 3)) 24)))
                       (setq pos (+ pos 4)))
