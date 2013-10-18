@@ -375,7 +375,7 @@ TODO
         done))))
 
 ;;;###autoload
-(defun salsa20-encrypt (key iv bytes)
+(defun salsa20-encrypt (bytes key iv)
   "Encrypt/Decrypt BYTES (string) with IV by KEY.
 KEY: 16 or 32 byte vector.
 IV: 8 byte vector.
