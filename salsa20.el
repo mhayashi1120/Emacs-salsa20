@@ -33,11 +33,11 @@
 
 ;;; Commentary:
 
-;;todo
-
+;; Salsa20 basic implementation
 ;; http://cr.yp.to/snuffle/spec.pdf
 
 ;; Salsa20/8 Salsa20/12
+;; http://cr.yp.to/snuffle/812.pdf
 
 ;;; Usage:
 ;;todo
@@ -76,8 +76,15 @@
   (eval-when-compile
     (vector (lsh ?\xff 0) (lsh ?\xff 8) (lsh ?\xff 16) (lsh ?\xff 24))))
 
-(defun salsa20--clone-16word (16word)
-  (vconcat 16word))
+(defun salsa20--copy-16word! (to from)
+  (loop for i from 0 below 16
+        do (aset to i (aref from i))))
+
+(defun salsa20--memcpy! (dest dest-from src src-from byte)
+  (loop repeat byte
+        for di from dest-from
+        for si from src-from
+        do (aset dest di (aref src si))))
 
 (eval-when-compile
   (defsubst salsa20--word-to-4bytes (word)
@@ -85,6 +92,10 @@
           (lsh (logand word (aref salsa20--byte-table 1))  -8)
           (lsh (logand word (aref salsa20--byte-table 2)) -16)
           (lsh (logand word (aref salsa20--byte-table 3)) -24))))
+
+(defun salsa20--16word-to-bytes (16word)
+  (loop for x across 16word
+        append (salsa20--word-to-4bytes x)))
 
 (eval-when-compile
   (defsubst salsa20--sum (word1 word2)
@@ -120,214 +131,195 @@
      (logand salsa20-word-max (lsh word (- shift 32))))))
 
 ;;
-;; 3. The quarterround function (4 bytes -> 4-word)
+;; 3. The quarterround function
 ;;
 
-;;TODO
-(eval-when-compile
-  (defsubst salsa20--one-sixteenth-round (base x0 x1 lshift)
-    (salsa20--xor base (salsa20--left-shift (salsa20--sum x0 x1) lshift))))
-
-(eval-when-compile
-  (defsubst salsa20--quarterround (y0 y1 y2 y3)
-    (let* ((z1 (salsa20--xor y1 (salsa20--left-shift (salsa20--sum y0 y3) 7)))
-           (z2 (salsa20--xor y2 (salsa20--left-shift (salsa20--sum z1 y0) 9)))
-           (z3 (salsa20--xor y3 (salsa20--left-shift (salsa20--sum z2 z1) 13)))
-           (z0 (salsa20--xor y0 (salsa20--left-shift (salsa20--sum z3 z2) 18)))
-           ;; literal vector (destructively changed)
-           (res [nil nil nil nil]))
-      (aset res 0 z0)
-      (aset res 1 z1)
-      (aset res 2 z2)
-      (aset res 3 z3)
-      res)))
-
-;;
-;; 4. The rowround function (16-word 4x4 todo -> 16-word 4x4)
-;;
+(defun salsa20--quarterround (y0 y1 y2 y3)
+  (let* ((z1 (salsa20--xor y1 (salsa20--left-shift (salsa20--sum y0 y3) 7)))
+         (z2 (salsa20--xor y2 (salsa20--left-shift (salsa20--sum z1 y0) 9)))
+         (z3 (salsa20--xor y3 (salsa20--left-shift (salsa20--sum z2 z1) 13)))
+         (z0 (salsa20--xor y0 (salsa20--left-shift (salsa20--sum z3 z2) 18)))
+         ;; literal vector (destructively changed)
+         (res [nil nil nil nil]))
+    (aset res 0 z0)
+    (aset res 1 z1)
+    (aset res 2 z2)
+    (aset res 3 z3)
+    res))
 
 (eval-when-compile
-  (defsubst salsa20--rowround! (y0 y1 y2 y3)
-    (let* ((generator (lambda (v j0 j1 j2 j3)
-                        (salsa20--quarterround
-                         (aref v j0) (aref v j1) (aref v j2) (aref v j3))))
-           (setter (lambda (row v i0 i1 i2 i3)
-                     (aset row 0 (aref v i0))
-                     (aset row 1 (aref v i1))
-                     (aset row 2 (aref v i2))
-                     (aset row 3 (aref v i3)))))
-      (funcall setter y0 (funcall generator y0 0 1 2 3) 0 1 2 3)
-      (funcall setter y1 (funcall generator y1 1 2 3 0) 3 0 1 2)
-      (funcall setter y2 (funcall generator y2 2 3 0 1) 2 3 0 1)
-      (funcall setter y3 (funcall generator y3 3 0 1 2) 1 2 3 0)
-      (vector y0 y1 y2 y3))))
+  (defsubst salsa20--quarter-quarterround! (x target src1 src2 shift-count)
+    (let* ((sum (salsa20--sum (aref x src1) (aref x src2)))
+           (shift (salsa20--left-shift sum shift-count))
+           (new (salsa20--xor (aref x target) shift)))
+      (aset x target new))))
 
 ;;
-;; 5. The columnround function (16-word 4x4 todo -> 16-word 4x4)
+;; 4. The rowround function (16-word -> 16-word)
 ;;
 
 (eval-when-compile
-  (defsubst salsa20--columnround! (x0 x1 x2 x3)
-    (let* ((generator (lambda (v0 v1 v2 v3 i)
-                        (salsa20--quarterround
-                         (aref v0 i) (aref v1 i) (aref v2 i) (aref v3 i))))
-           (setter (lambda (col v i0 i1 i2 i3)
-                     (aset x0 col (aref v i0))
-                     (aset x1 col (aref v i1))
-                     (aset x2 col (aref v i2))
-                     (aset x3 col (aref v i3)))))
-      (funcall setter 0 (funcall generator x0 x1 x2 x3 0) 0 1 2 3)
-      (funcall setter 1 (funcall generator x1 x2 x3 x0 1) 3 0 1 2)
-      (funcall setter 2 (funcall generator x2 x3 x0 x1 2) 2 3 0 1)
-      (funcall setter 3 (funcall generator x3 x0 x1 x2 3) 1 2 3 0)
-      (vector x0 x1 x2 x3))))
+  (defsubst salsa20--rowround! (y)
+    (salsa20--quarter-quarterround! y  1  0  3  7)
+    (salsa20--quarter-quarterround! y  2  1  0  9)
+    (salsa20--quarter-quarterround! y  3  2  1 13)
+    (salsa20--quarter-quarterround! y  0  3  2 18)
+    (salsa20--quarter-quarterround! y  6  5  4  7)
+    (salsa20--quarter-quarterround! y  7  6  5  9)
+    (salsa20--quarter-quarterround! y  4  7  6 13)
+    (salsa20--quarter-quarterround! y  5  4  7 18)
+    (salsa20--quarter-quarterround! y 11 10  9  7)
+    (salsa20--quarter-quarterround! y  8 11 10  9)
+    (salsa20--quarter-quarterround! y  9  8 11 13)
+    (salsa20--quarter-quarterround! y 10  9  8 18)
+    (salsa20--quarter-quarterround! y 12 15 14  7)
+    (salsa20--quarter-quarterround! y 13 12 15  9)
+    (salsa20--quarter-quarterround! y 14 13 12 13)
+    (salsa20--quarter-quarterround! y 15 14 13 18)
+    y))
 
 ;;
-;; 6. The doubleround function (16-word 4x4 -> 16-word 4x4)
+;; 5. The columnround function (16-word -> 16-word)
 ;;
 
+(eval-when-compile
+  (defsubst salsa20--columnround! (x)
+    (salsa20--quarter-quarterround! x  4  0 12  7)
+    (salsa20--quarter-quarterround! x  8  4  0  9)
+    (salsa20--quarter-quarterround! x 12  8  4 13)
+    (salsa20--quarter-quarterround! x  0 12  8 18)
+    (salsa20--quarter-quarterround! x  9  5  1  7)
+    (salsa20--quarter-quarterround! x 13  9  5  9)
+    (salsa20--quarter-quarterround! x  1 13  9 13)
+    (salsa20--quarter-quarterround! x  5  1 13 18)
+    (salsa20--quarter-quarterround! x 14 10  6  7)
+    (salsa20--quarter-quarterround! x  2 14 10  9)
+    (salsa20--quarter-quarterround! x  6  2 14 13)
+    (salsa20--quarter-quarterround! x 10  6  2 18)
+    (salsa20--quarter-quarterround! x  3 15 11  7)
+    (salsa20--quarter-quarterround! x  7  3 15  9)
+    (salsa20--quarter-quarterround! x 11  7  3 13)
+    (salsa20--quarter-quarterround! x 15 11  7 18)
+    x))
+
+;;
+;; 6. The doubleround function (16-word -> 16-word)
+;;
+
+;; Not used
 (eval-when-compile
   (defsubst salsa20--doubleround! (x)
-    ;; (salsa20--columnround! (substring x 0 4) (substring x 4 8) (substring x 8 12) (substring x 12 16))
-    ;; (salsa20--rowround! (substring x 0 4) (substring x 4 8) (substring x 8 12) (substring x 12 16))
-    (let ((setter
-           (lambda (target src1 src2 shift-count)
-             (let* ((sum (salsa20--sum (aref x src1) (aref x src2)))
-                    (shift (salsa20--left-shift sum shift-count))
-                    (new (salsa20--xor (aref x target) shift)))
-               (aset x target new)))))
-      (funcall setter  4  0 12  7)
-      (funcall setter  8  4  0  9)
-      (funcall setter 12  8  4 13)
-      (funcall setter  0 12  8 18)
-      (funcall setter  9  5  1  7)
-      (funcall setter 13  9  5  9)
-      (funcall setter  1 13  9 13)
-      (funcall setter  5  1 13 18)
-      (funcall setter 14 10  6  7)
-      (funcall setter  2 14 10  9)
-      (funcall setter  6  2 14 13)
-      (funcall setter 10  6  2 18)
-      (funcall setter  3 15 11  7)
-      (funcall setter  7  3 15  9)
-      (funcall setter 11  7  3 13)
-      (funcall setter 15 11  7 18)
-      (funcall setter  1  0  3  7)
-      (funcall setter  2  1  0  9)
-      (funcall setter  3  2  1 13)
-      (funcall setter  0  3  2 18)
-      (funcall setter  6  5  4  7)
-      (funcall setter  7  6  5  9)
-      (funcall setter  4  7  6 13)
-      (funcall setter  5  4  7 18)
-      (funcall setter 11 10  9  7)
-      (funcall setter  8 11 10  9)
-      (funcall setter  9  8 11 13)
-      (funcall setter 10  9  8 18)
-      (funcall setter 12 15 14  7)
-      (funcall setter 13 12 15  9)
-      (funcall setter 14 13 12 13)
-      (funcall setter 15 14 13 18)
-      x)))
+    (salsa20--columnround! x)
+    (salsa20--rowround! x)
+    x))
 
 ;;
 ;; 7. The littleendian function (4-byte -> 1-word)
 ;;
 
-(defun salsa20--littleendian (b0 b1 b2 b3)
-  (logior
-   (lsh b0 0)
-   (lsh b1 8)
-   (lsh b2 16)
-   (lsh b3 24)))
+(eval-and-compile
+  (defun salsa20--littleendian (b0 b1 b2 b3)
+    (logior
+     (lsh b0 0)
+     (lsh b1 8)
+     (lsh b2 16)
+     (lsh b3 24))))
 
 ;;
 ;; 8. The Salsa20 hash function (64-byte unibyte list -> 64-byte unibyte list)
 ;;
 
-(defun salsa20--16word-to-bytes (16word)
-  (loop for x across 16word
-        append (salsa20--word-to-4bytes x)))
-
-(defun salsa20--load-16word! (xs list)
-  ;; destructive literal vector
-  (loop for i from 0 below 16
-        for j from 0 by 4
-        for top on list by (lambda (x) (nthcdr 4 x))
-        do (aset xs i (salsa20--littleendian
-                       (nth 0 top)
-                       (nth 1 top)
-                       (nth 2 top)
-                       (nth 3 top)))
-        finally return xs))
-
-;;TODO consider about ROUNDS is odd/even
-(defun salsa20--hash (x &optional rounds)
+(defun salsa20--hash (16word &optional rounds)
   (unless rounds
     (setq rounds 20))
-  (loop with 16word = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
-        with xs = (salsa20--load-16word! 16word x)
+  (loop with initial = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
         ;; clone working vector to preserve initial vector
-        with tmp = (salsa20--clone-16word xs)
-        for r from 0 below rounds by 2
-        do (salsa20--doubleround! tmp)
+        initially (salsa20--copy-16word! initial 16word)
+        for r from 0 below rounds
+        if (zerop (logand r 1))
+        do (salsa20--columnround! 16word)
+        else
+        do (salsa20--rowround! 16word)
         finally return
         (progn
-          (salsa20--sum-16word! tmp xs)
-          (salsa20--16word-to-bytes tmp))))
-
-(defun salsa20--hash-many (x time)
-  (loop repeat time
-        do (setq x (salsa20--hash x))
-        finally return x))
+          (salsa20--sum-16word! 16word initial)
+          (prog1
+              (salsa20--16word-to-bytes 16word)
+            (fillarray 16word 0)
+            (fillarray initial 0)))))
 
 ;;
 ;; 9. The Salsa20 expansion function
 ;;
 
-(defconst salsa20--sigma
-  [
-   [101 120 112  97]
-   [110 100  32  51]
-   [ 50  45  98 121]
-   [116 101  32 107]])
+(defconst salsa20--sigma-word
+  (eval-when-compile
+    (vconcat
+     (mapcar
+      (lambda (x)
+        (apply 'salsa20--littleendian x))
+      '((101 120 112  97)
+        (110 100  32  51)
+        ( 50  45  98 121)
+        (116 101  32 107))))))
 
-(defconst salsa20--tau
-  [
-   [101 120 112  97]
-   [110 100  32  49]
-   [ 54  45  98 121]
-   [116 101  32 107]])
+(defconst salsa20--tau-word
+  (eval-when-compile
+    (vconcat
+     (mapcar
+      (lambda (x)
+        (apply 'salsa20--littleendian x))
+      '((101 120 112  97)
+        (110 100  32  49)
+        ( 54  45  98 121)
+        (116 101  32 107))))))
 
-(defun salsa20-expansion (k n)
+(defun salsa20--read-sigma-16word! (16word k m)
+  (let ((sigma salsa20--sigma-word))
+    (aset 16word 0 (aref sigma 0))
+    (salsa20--memcpy! 16word 1 k 0 4)
+    (aset 16word 5 (aref sigma 1))
+    (salsa20--memcpy! 16word 6 m 0 4)
+    (aset 16word 10 (aref sigma 2))
+    (salsa20--memcpy! 16word 11 k 4 4)
+    (aset 16word 15 (aref sigma 3))))
+
+(defun salsa20--read-tau-16word! (16word k m)
+  (let ((tau salsa20--tau-word))
+    (aset 16word 0 (aref tau 0))
+    (salsa20--memcpy! 16word 1 k 0 4)
+    (aset 16word 5 (aref tau 1))
+    (salsa20--memcpy! 16word 6 m 0 4)
+    (aset 16word 10 (aref tau 2))
+    (salsa20--memcpy! 16word 11 k 0 4)
+    (aset 16word 15 (aref tau 3))))
+
+(defun salsa20--bytes-to-word (bytes)
+  (loop with v = (make-vector (/ (length bytes) 4) nil)
+        for i from 0 below (length bytes) by 4
+        for j from 0
+        do (aset v j (salsa20--littleendian
+                      (aref bytes (+ i 0)) (aref bytes (+ i 1))
+                      (aref bytes (+ i 2)) (aref bytes (+ i 3))))
+        finally return v))
+
+(defun salsa20-expansion (k n &optional rounds)
   (unless (= (length n) 16)
     (error "invalid `n' length (Must be 16-byte)"))
-  ;;TODO remove `append'??
-  (cond
-   ((= (length k) 16)
-    (salsa20--hash
-     (append
-      (aref salsa20--tau 0)
-      k
-      (aref salsa20--tau 1)
-      n
-      (aref salsa20--tau 2)
-      k
-      (aref salsa20--tau 3)
-      nil)))
-   ((= (length k) 32)
-    (salsa20--hash
-     (append
-      (aref salsa20--sigma 0)
-      (substring k 0 16)                ; k0
-      (aref salsa20--sigma 1)
-      n
-      (aref salsa20--sigma 2)
-      (substring k 16)                  ; k1
-      (aref salsa20--sigma 3)
-      nil)))
-   (t
-    (error "Not a supported key length (16 or 32 bytes)"))))
+  (unless (memq (length k) '(16 32))
+    (error "Not a supported key length (16 or 32 bytes)"))
+  ;; TODO 16word will be cleared in `salsa20--hash'
+  (let ((kw (salsa20--bytes-to-word k))
+        (nw (salsa20--bytes-to-word n))
+        (16word [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]))
+    (cond
+     ((= (length k) 16)
+      (salsa20--read-tau-16word! 16word kw nw))
+     ((= (length k) 32)
+      (salsa20--read-sigma-16word! 16word kw nw))
+     (t
+      (error "assert")))
+    (salsa20--hash 16word rounds)))
 
 ;;
 ;; 10. The Salsa20 encryption function
@@ -351,38 +343,40 @@
         finally return v))
 
 ;;;###autoload
-(defun salsa20-generator (key iv)
+(defun salsa20-generator (key iv &optional rounds)
   "Return a function which generate random sequence as byte list.
 This function accept a integer arg indicate the length of the byte list.
-TODO
-
-"
+ROUNDS: See `salsa20-encrypt' description."
   (unless (= (length iv) 8)
     (error "Invalid length of IV (Must be 8 byte)"))
   (unless (memq (length key) '(16 32))
     (error "Invalid length of KEY (Must be 16 or 32 byte)"))
-  (let* ((i (vector 0 0 0 0 0 0 0 0))
+  (let* ((i [0 0 0 0 0 0 0 0])
          (n (vconcat iv i))
          remain)
     (lambda (size)
-      (let ((done remain))
-        (while (< (length done) size)
-          (let ((hash (salsa20-expansion key n)))
-            (setq done (nconc done hash))
-            (salsa20--inc-ushort! n 8)))
-        (setq remain (nthcdr size done))
-        (setcdr (nthcdr (1- size) done) nil)
-        done))))
+      (if (zerop size)
+          '()
+        (let ((done remain))
+          (while (< (length done) size)
+            (let ((hash (salsa20-expansion key n rounds)))
+              (setq done (nconc done hash))
+              (salsa20--inc-ushort! n 8)))
+          (setq remain (nthcdr size done))
+          (setcdr (nthcdr (1- size) done) nil)
+          done)))))
 
 ;;;###autoload
-(defun salsa20-encrypt (bytes key iv)
+(defun salsa20-encrypt (bytes key iv &optional rounds)
   "Encrypt/Decrypt BYTES (string) with IV by KEY.
 KEY: 16 or 32 byte vector.
 IV: 8 byte vector.
+ROUNDS: Optional integer to reduce the number of rounds.
+  http://cr.yp.to/snuffle/812.pdf refer Salsa20/8 Salsa20/12 as a secure option.
 "
   (when (multibyte-string-p bytes)
     (error "Not a unibyte string"))
-  (let* ((generator (salsa20-generator key iv))
+  (let* ((generator (salsa20-generator key iv rounds))
          (hash (funcall generator (length bytes))))
     (apply 'unibyte-string
            (salsa20--xor-list (string-to-list bytes) hash))))
@@ -410,25 +404,6 @@ IV: 8 byte vector.
 ;; (defun salsa20-hash (object &optional coding-system start end)
 ;;   "todo Core function to create 64-byte hash like `secure-hash'"
 ;;   (salsa20--hash ))
-
-;;TODO use?
-;; read 64-byte -> 16-word (4x4)
-(defun salsa20-read-from-string (string pos)
-  (when (multibyte-string-p string)
-    (error "error todo"))
-  (loop with v1 = (make-vector 4 nil)
-        for i from 0 below 4
-        do (loop with v2 = (make-vector 4 0)
-                 for j from 0 below 4
-                 do (progn
-                      (aset v2 j (logior
-                                  (lsh (aref string (+ pos 0))  0)
-                                  (lsh (aref string (+ pos 1))  8)
-                                  (lsh (aref string (+ pos 2)) 16)
-                                  (lsh (aref string (+ pos 3)) 24)))
-                      (setq pos (+ pos 4)))
-                 finally (aset v1 i v2))
-        finally return v1))
 
 (provide 'salsa20)
 

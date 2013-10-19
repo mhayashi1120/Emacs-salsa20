@@ -12,6 +12,14 @@
 (defun salsa20-test--concat-byteseq (text)
   (mapcar 'string-to-number (split-string text "[; \n]" t)))
 
+(defun salsa20-test--concat-byteseq-16word (text)
+  (vconcat
+   (loop for bs on (salsa20-test--concat-byteseq text)
+         by (lambda (x) (nthcdr 4 x))
+         collect (salsa20--littleendian
+                  (nth 0 bs) (nth 1 bs)
+                  (nth 2 bs) (nth 3 bs)))))
+
 (ert-deftest sum-001 ()
   "todo."
   :tags '(salsa20)
@@ -59,14 +67,6 @@
   (should (equal (apply 'salsa20--quarterround (salsa20-test--quarterround-read "0xd3917c5b; 0x55f1c407; 0x52a58a7a; 0x8f887a3b"))
                  (vconcat (salsa20-test--quarterround-read "0x3e2f308c; 0xd90a8f36; 0x6ab2a923; 0x2883524c")))))
 
-(defun salsa20-test--16word-4x4 (text)
-  (let ((16word (salsa20-test--16word text)))
-    (vector
-     (substring 16word 0 4)
-     (substring 16word 4 8)
-     (substring 16word 8 12)
-     (substring 16word 12 16))))
-
 (defun salsa20-test--16word (text)
   (vconcat
    (loop for x in (split-string text "[; ]" t)
@@ -75,25 +75,25 @@
 (ert-deftest rowround-001 ()
   "todo."
   :tags '(salsa20)
-  (should (equal (apply 'salsa20--rowround!
-                        (append (salsa20-test--16word-4x4 "0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000") nil))
-                 (salsa20-test--16word-4x4 "0x08008145; 0x00000080; 0x00010200; 0x20500000;0x20100001; 0x00048044; 0x00000080; 0x00010000;0x00000001; 0x00002000; 0x80040000; 0x00000000;0x00000001; 0x00000200; 0x00402000; 0x88000100")))
-
-  (should (equal (apply 'salsa20--rowround!
-                        (append (salsa20-test--16word-4x4 "0x08521bd6; 0x1fe88837; 0xbb2aa576; 0x3aa26365;0xc54c6a5b; 0x2fc74c2f; 0x6dd39cc3; 0xda0a64f6;0x90a2f23d; 0x067f95a6; 0x06b35f61; 0x41e4732e;0xe859c100; 0xea4d84b7; 0x0f619bff; 0xbc6e965a") nil))
-                 (salsa20-test--16word-4x4 "0xa890d39d; 0x65d71596; 0xe9487daa; 0xc8ca6a86;0x949d2192; 0x764b7754; 0xe408d9b9; 0x7a41b4d1;0x3402e183; 0x3c3af432; 0x50669f96; 0xd89ef0a8;0x0040ede5; 0xb545fbce; 0xd257ed4f; 0x1818882d"))))
+  (should (equal (salsa20--rowround!
+                  (salsa20-test--16word"0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000"))
+                 (salsa20-test--16word "0x08008145; 0x00000080; 0x00010200; 0x20500000;0x20100001; 0x00048044; 0x00000080; 0x00010000;0x00000001; 0x00002000; 0x80040000; 0x00000000;0x00000001; 0x00000200; 0x00402000; 0x88000100")))
+  
+  (should (equal (salsa20--rowround!
+                  (salsa20-test--16word "0x08521bd6; 0x1fe88837; 0xbb2aa576; 0x3aa26365;0xc54c6a5b; 0x2fc74c2f; 0x6dd39cc3; 0xda0a64f6;0x90a2f23d; 0x067f95a6; 0x06b35f61; 0x41e4732e;0xe859c100; 0xea4d84b7; 0x0f619bff; 0xbc6e965a"))
+                 (salsa20-test--16word "0xa890d39d; 0x65d71596; 0xe9487daa; 0xc8ca6a86;0x949d2192; 0x764b7754; 0xe408d9b9; 0x7a41b4d1;0x3402e183; 0x3c3af432; 0x50669f96; 0xd89ef0a8;0x0040ede5; 0xb545fbce; 0xd257ed4f; 0x1818882d"))))
 
 
 (ert-deftest columnround-001 ()
   "todo."
   :tags '(salsa20)
-  (should (equal (apply 'salsa20--columnround!
-                        (append (salsa20-test--16word-4x4 "0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000") nil))
-                 (salsa20-test--16word-4x4 "0x10090288; 0x00000000; 0x00000000; 0x00000000;0x00000101; 0x00000000; 0x00000000; 0x00000000;0x00020401; 0x00000000; 0x00000000; 0x00000000;0x40a04001; 0x00000000; 0x00000000; 0x00000000")))
+  (should (equal (salsa20--columnround!
+                  (salsa20-test--16word"0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000; 0x00000001; 0x00000000; 0x00000000; 0x00000000"))
+                 (salsa20-test--16word "0x10090288; 0x00000000; 0x00000000; 0x00000000;0x00000101; 0x00000000; 0x00000000; 0x00000000;0x00020401; 0x00000000; 0x00000000; 0x00000000;0x40a04001; 0x00000000; 0x00000000; 0x00000000")))
 
-  (should (equal (apply 'salsa20--columnround!
-                        (append (salsa20-test--16word-4x4 "0x08521bd6; 0x1fe88837; 0xbb2aa576; 0x3aa26365;0xc54c6a5b; 0x2fc74c2f; 0x6dd39cc3; 0xda0a64f6;0x90a2f23d; 0x067f95a6; 0x06b35f61; 0x41e4732e;0xe859c100; 0xea4d84b7; 0x0f619bff; 0xbc6e965a") nil))
-                 (salsa20-test--16word-4x4"0x8c9d190a; 0xce8e4c90; 0x1ef8e9d3; 0x1326a71a;0x90a20123; 0xead3c4f3; 0x63a091a0; 0xf0708d69;0x789b010c; 0xd195a681; 0xeb7d5504; 0xa774135c;0x481c2027; 0x53a8e4b5; 0x4c1f89c5; 0x3f78c9c8"))))
+  (should (equal (salsa20--columnround!
+                  (salsa20-test--16word"0x08521bd6; 0x1fe88837; 0xbb2aa576; 0x3aa26365;0xc54c6a5b; 0x2fc74c2f; 0x6dd39cc3; 0xda0a64f6;0x90a2f23d; 0x067f95a6; 0x06b35f61; 0x41e4732e;0xe859c100; 0xea4d84b7; 0x0f619bff; 0xbc6e965a"))
+                 (salsa20-test--16word "0x8c9d190a; 0xce8e4c90; 0x1ef8e9d3; 0x1326a71a;0x90a20123; 0xead3c4f3; 0x63a091a0; 0xf0708d69;0x789b010c; 0xd195a681; 0xeb7d5504; 0xa774135c;0x481c2027; 0x53a8e4b5; 0x4c1f89c5; 0x3f78c9c8"))))
 
 (ert-deftest doubleround-001 ()
   "todo."
@@ -109,23 +109,23 @@
 (ert-deftest LE-001 ()
   "todo."
   :tags '(salsa20)
-  (should (equal (salsa20--littleendian 0 0 0 0) (string-to-number "00000000" 16)))
-  (should (equal (salsa20--littleendian 86 75 30 9) (string-to-number "091e4b56" 16)))
-  (should (equal (salsa20--littleendian 255 255 255 250) (string-to-number "faffffff" 16))))
+  (should (equal (salsa20--littleendian 0 0 0 0) #x00000000))
+  (should (equal (salsa20--littleendian 86 75 30 9) #x091e4b56))
+  (should (equal (salsa20--littleendian 255 255 255 250) #xfaffffff)))
 
 (ert-deftest hash-001 ()
   "todo."
   :tags '(salsa20)
   (should (equal (salsa20--hash
-                  (salsa20-test--concat-byteseq "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0"))
+                  (salsa20-test--concat-byteseq-16word "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0"))
                  (salsa20-test--concat-byteseq "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0")))
 
   (should (equal (salsa20--hash
-                  (salsa20-test--concat-byteseq "211;159; 13;115; 76; 55; 82;183; 3;117;222; 37;191;187;234;136;49;237;179; 48; 1;106;178;219;175;199;166; 48; 86; 16;179;207;31;240; 32; 63; 15; 83; 93;161;116;147; 48;113;238; 55;204; 36;79;201;235; 79; 3; 81;156; 47;203; 26;244;243; 88;118;104; 54"))
+                  (salsa20-test--concat-byteseq-16word "211;159; 13;115; 76; 55; 82;183; 3;117;222; 37;191;187;234;136;49;237;179; 48; 1;106;178;219;175;199;166; 48; 86; 16;179;207;31;240; 32; 63; 15; 83; 93;161;116;147; 48;113;238; 55;204; 36;79;201;235; 79; 3; 81;156; 47;203; 26;244;243; 88;118;104; 54"))
                  (salsa20-test--concat-byteseq "109; 42;178;168;156;240;248;238;168;196;190;203; 26;110;170;154;29; 29;150; 26;150; 30;235;249;190;163;251; 48; 69;144; 51; 57;118; 40;152;157;180; 57; 27; 94;107; 42;236; 35; 27;111;114;114;219;236;232;135;111;155;110; 18; 24;232; 95;158;179; 19; 48;202")))
 
   (should (equal (salsa20--hash
-                  (salsa20-test--concat-byteseq "88;118;104; 54; 79;201;235; 79; 3; 81;156; 47;203; 26;244;243;191;187;234;136;211;159; 13;115; 76; 55; 82;183; 3;117;222; 37;86; 16;179;207; 49;237;179; 48; 1;106;178;219;175;199;166; 48;238; 55;204; 36; 31;240; 32; 63; 15; 83; 93;161;116;147; 48;113"))
+                  (salsa20-test--concat-byteseq-16word "88;118;104; 54; 79;201;235; 79; 3; 81;156; 47;203; 26;244;243;191;187;234;136;211;159; 13;115; 76; 55; 82;183; 3;117;222; 37;86; 16;179;207; 49;237;179; 48; 1;106;178;219;175;199;166; 48;238; 55;204; 36; 31;240; 32; 63; 15; 83; 93;161;116;147; 48;113"))
                  (salsa20-test--concat-byteseq "179; 19; 48;202;219;236;232;135;111;155;110; 18; 24;232; 95;158;26;110;170;154;109; 42;178;168;156;240;248;238;168;196;190;203;69;144; 51; 57; 29; 29;150; 26;150; 30;235;249;190;163;251; 48;27;111;114;114;118; 40;152;157;180; 57; 27; 94;107; 42;236; 35"))))
 
 ;; (should (equal (loop with seq = (salsa20-test--concat-byteseq "6;124; 83;146; 38;191; 9; 50; 4;161; 47;222;122;182;223;185;75; 27; 0;216; 16;122; 7; 89;162;104;101;147;213; 21; 54; 95;225;253;139;176;105;132; 23;116; 76; 41;176;207;221; 34;157;108;94; 94; 99; 52; 90;117; 91;220;146;190;239;143;196;176;130;186")
