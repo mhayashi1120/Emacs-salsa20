@@ -11,7 +11,7 @@ todo
 Test
 ====
 
-    M-x ert (tag kaesar)
+    M-x ert (tag salsa20)
 
 Or
 

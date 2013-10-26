@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: https://github.com/mhayashi1120/Emacs-salsa/raw/master/salsa20.el
+;; URL: TODO https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
 ;; Version: 0.0.1
 ;; Package-Requires: ()
@@ -113,11 +113,17 @@
           do (aset words1 i (salsa20--sum w1 w2))
           finally return words1)))
 
-(eval-when-compile
-  (defsubst salsa20--xor-list (list1 list2)
-    (loop for x1 in list1
-          for x2 in list2
-          collect (logxor x1 x2))))
+(defun salsa20--xor-vector! (vector list)
+  (loop for i from 0
+        for v1 across vector
+        for l1 in list
+        do (aset vector i (logxor v1 l1))
+        finally return vector))
+
+(defun salsa20--xor-list (list1 list2)
+  (loop for x1 in list1
+        for x2 in list2
+        collect (logxor x1 x2)))
 
 ;;
 ;; 2. Words
@@ -134,6 +140,7 @@
 ;; 3. The quarterround function
 ;;
 
+;; TODO not used but test
 (defun salsa20--quarterround (y0 y1 y2 y3)
   (let* ((z1 (salsa20--xor y1 (salsa20--left-shift (salsa20--sum y0 y3) 7)))
          (z2 (salsa20--xor y2 (salsa20--left-shift (salsa20--sum z1 y0) 9)))
@@ -333,14 +340,17 @@
         return nil)
   vector)
 
-;;;###autoload
-(defun salsa20-generate-random-iv ()
-  "Utility function to create randomized initial vector (IV)."
-  (loop with size = 8
-        with v = (make-vector size nil)
+
+(defun salsa20--generate-random-bytes (size)
+  (loop with v = (make-vector size nil)
         for i below size
         do (aset v i (random ?\x100))
         finally return v))
+
+;;;###autoload
+(defun salsa20-generate-random-iv ()
+  "Utility function to create randomized initial vector (IV)."
+  (salsa20--generate-random-bytes 8))
 
 ;;;###autoload
 (defun salsa20-generator (key iv &optional rounds)
@@ -372,28 +382,72 @@ ROUNDS: See `salsa20-encrypt' description."
 KEY: 16 or 32 byte vector.
 IV: 8 byte vector.
 ROUNDS: Optional integer to reduce the number of rounds.
-  http://cr.yp.to/snuffle/812.pdf refer Salsa20/8 Salsa20/12 as a secure option.
+  See http://cr.yp.to/snuffle/812.pdf refering about Salsa20/8 Salsa20/12
+  as a secure option.
+
+TODO clear KEY?? but generator use this instance.
+TODO BYTES is destructively changed
 "
   (when (multibyte-string-p bytes)
     (error "Not a unibyte string"))
   (let* ((generator (salsa20-generator key iv rounds))
          (hash (funcall generator (length bytes))))
-    (apply 'unibyte-string
-           (salsa20--xor-list (string-to-list bytes) hash))))
+    (salsa20--xor-vector! bytes hash)))
 
 ;;;###autoload
 (defalias 'salsa20-decrypt 'salsa20-encrypt)
 
-;; ;;;###autoload
-;; (defun salsa20-encrypt-string (key iv text &optional coding-system)
-;;   "TODO"
-;;   (let ((bytes (if coding-system
-;;                    (encode-coding-string text coding-system)
-;;                  (string-as-unibyte text))))
-;;     (salsa20-encrypt key iv bytes)))
+;;;###autoload
+(defun salsa20-encrypt-string (string &optional coding-system)
+  "TODO"
+  (let ((bytes (cond
+                ((not (multibyte-string-p string))
+                 string)
+                (coding-system
+                 (encode-coding-string string coding-system))
+                (t
+                 (string-as-unibyte string)))))
+    (let* ((salt (salsa20--generate-random-bytes 8))
+           (pass (read-passwd
+                  "Password to encrypt: " t)))
+      ;;TODO
+      (require 'kaesar)
+      (destructuring-bind (raw-key iv)
+          (kaesar--openssl-evp-bytes-to-key-0
+           ;;TODO
+           8 16
+           ;;TODO
+           (vconcat pass) salt)
+        (apply 
+         'unibyte-string
+         (append
+          (string-to-list "Salted__")
+          salt
+          (string-to-list (salsa20-encrypt bytes raw-key iv))))))))
 
-;; ;;;###autoload
-;; (defalias 'salsa20-decrypt-string 'salsa20-encrypt-string)
+;;;###autoload
+(defun salsa20-decrypt-string (string &optional coding-system)
+  "TODO"
+  (unless (string-match "\\`Salted__\\(.\\{8\\}\\)" string)
+    (error "TODO"))
+  (let ((pass (read-passwd
+               "Password to decrypt: "))
+        (salt (match-string 1 string))
+        (body (substring string (match-end 0))))
+    ;;TODO
+    (require 'kaesar)
+    (destructuring-bind (raw-key iv)
+        (kaesar--openssl-evp-bytes-to-key-0
+         ;;TODO
+         8 16
+         ;;TODO
+         (vconcat pass) salt)
+      (let ((bytes (salsa20-decrypt body raw-key iv)))
+        (cond
+         (coding-system
+          (decode-coding-string bytes coding-system))
+         (t
+          (string-as-multibyte bytes)))))))
 
 ;;TODO
 ;; (defun salsa20-password-to-key (password salt)
