@@ -355,8 +355,15 @@
 ;;;###autoload
 (defun salsa20-generator (key iv &optional rounds)
   "Return a function which generate random sequence as byte list.
-This function accept a integer arg indicate the length of the byte list.
-ROUNDS: See `salsa20-encrypt' description."
+This function accept following one of arg indicate the command of this function.
+
+* length of the byte list.
+* `t' means destruct this function.
+
+Optional ROUNDS arg see `salsa20-encrypt' description.
+
+TODO sample of using
+"
   (unless (= (length iv) 8)
     (error "Invalid length of IV (Must be 8 byte)"))
   (unless (memq (length key) '(16 32))
@@ -364,17 +371,26 @@ ROUNDS: See `salsa20-encrypt' description."
   (let* ((i [0 0 0 0 0 0 0 0])
          (n (vconcat iv i))
          remain)
-    (lambda (size)
-      (if (zerop size)
-          '()
+    (lambda (command)
+      (cond
+       ((eq command t)
+        (fillarray i 0)
+        (fillarray n 0)
+        (loop for r on remain
+              do (setcar r 0)))
+       ((not (numberp command))
+        (error "Not supported command %s" command))
+       ((zerop command)
+        '())
+       (t
         (let ((done remain))
-          (while (< (length done) size)
+          (while (< (length done) command)
             (let ((hash (salsa20-expansion key n rounds)))
               (setq done (nconc done hash))
               (salsa20--inc-ushort! n 8)))
-          (setq remain (nthcdr size done))
-          (setcdr (nthcdr (1- size) done) nil)
-          done)))))
+          (setq remain (nthcdr command done))
+          (setcdr (nthcdr (1- command) done) nil)
+          done))))))
 
 ;;;###autoload
 (defun salsa20-encrypt (bytes key iv &optional rounds)
@@ -399,7 +415,8 @@ TODO BYTES is destructively changed
 
 ;;;###autoload
 (defun salsa20-encrypt-string (string &optional coding-system)
-  "TODO"
+  "Encrypt STRING by password.
+TODO"
   (let ((bytes (cond
                 ((not (multibyte-string-p string))
                  string)
@@ -408,8 +425,7 @@ TODO BYTES is destructively changed
                 (t
                  (string-as-unibyte string)))))
     (let* ((salt (salsa20--generate-random-bytes 8))
-           (pass (read-passwd
-                  "Password to encrypt: " t)))
+           (pass (read-passwd "Password to encrypt: " t)))
       ;;TODO
       (require 'kaesar)
       (destructuring-bind (raw-key iv)
@@ -427,11 +443,10 @@ TODO BYTES is destructively changed
 
 ;;;###autoload
 (defun salsa20-decrypt-string (string &optional coding-system)
-  "TODO"
+  "Decrypt STRING by password."
   (unless (string-match "\\`Salted__\\(.\\{8\\}\\)" string)
-    (error "TODO"))
-  (let ((pass (read-passwd
-               "Password to decrypt: "))
+    (error "TODO Not salted string"))
+  (let ((pass (read-passwd "Password to decrypt: "))
         (salt (match-string 1 string))
         (body (substring string (match-end 0))))
     ;;TODO
@@ -446,8 +461,11 @@ TODO BYTES is destructively changed
         (cond
          (coding-system
           (decode-coding-string bytes coding-system))
+         ((default-value 'enable-multibyte-characters)
+          ;;TODO only multibyte environment
+          (string-as-multibyte bytes))
          (t
-          (string-as-multibyte bytes)))))))
+          bytes))))))
 
 ;;TODO
 ;; (defun salsa20-password-to-key (password salt)
