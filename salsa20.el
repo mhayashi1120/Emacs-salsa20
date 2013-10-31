@@ -126,6 +126,23 @@
         collect (logxor x1 x2)))
 
 ;;
+;; Misc utilities
+;;
+
+(defun salsa20--md5-digest (data)
+  (loop with unibytes = (apply 'unibyte-string data)
+        with md5-hash = (md5 unibytes)
+        for i from 0 below (length md5-hash) by 2
+        collect (string-to-number (substring md5-hash i (+ i 2)) 16)))
+
+(defun salsa20--split-at (list n)
+  (let* ((len (length list))
+         (at (- len n))
+         (tail (last list at))
+         (top (nbutlast list at)))
+    (list top tail)))
+
+;;
 ;; 2. Words
 ;;
 
@@ -140,7 +157,7 @@
 ;; 3. The quarterround function
 ;;
 
-;; TODO not used but test
+;; not used but for test
 (defun salsa20--quarterround (y0 y1 y2 y3)
   (let* ((z1 (salsa20--xor y1 (salsa20--left-shift (salsa20--sum y0 y3) 7)))
          (z2 (salsa20--xor y2 (salsa20--left-shift (salsa20--sum z1 y0) 9)))
@@ -362,7 +379,13 @@ This function accept following one of arg indicate the command of this function.
 
 Optional ROUNDS arg see `salsa20-encrypt' description.
 
-TODO sample of using
+Sample:
+\(let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
+  (unwind-protect
+      (loop repeat 5
+            collect (funcall generator 50))
+    ;; Should not forget destruct
+    (funcall generator t)))
 "
   (unless (= (length iv) 8)
     (error "Invalid length of IV (Must be 8 byte)"))
@@ -395,28 +418,58 @@ TODO sample of using
 ;;;###autoload
 (defun salsa20-encrypt (bytes key iv &optional rounds)
   "Encrypt/Decrypt BYTES (string) with IV by KEY.
+BYTES: Encrypt/Decrypt target and is destructively changed.
 KEY: 16 or 32 byte vector.
 IV: 8 byte vector.
 ROUNDS: Optional integer to reduce the number of rounds.
   See http://cr.yp.to/snuffle/812.pdf refering about Salsa20/8 Salsa20/12
-  as a secure option.
-
-TODO clear KEY?? but generator use this instance.
-TODO BYTES is destructively changed
-"
+  as a secure option."
   (when (multibyte-string-p bytes)
     (error "Not a unibyte string"))
   (let* ((generator (salsa20-generator key iv rounds))
          (hash (funcall generator (length bytes))))
-    (salsa20--xor-vector! bytes hash)))
+    (unwind-protect
+        (salsa20--xor-vector! bytes hash)
+      (funcall generator t))))
 
 ;;;###autoload
 (defalias 'salsa20-decrypt 'salsa20-encrypt)
 
+;;;
+;;; Encrypt/Decrypt encoded string
+;;;
+
+;; Emulate openssl EVP_BytesToKey function
+;; Although, `openssl' command not support salsa20 algorithm.
+(defun salsa20--openssl-evp-bytes-to-key (iv-length key-length data salt)
+  (let ((hash (loop with prev = nil
+                    for i below (+ iv-length key-length) by 16
+                    append (let ((context (append prev data salt nil)))
+                             (setq prev (salsa20--md5-digest context))
+                             ;; clone
+                             (append prev nil)))))
+    (let* ((key&rest (salsa20--split-at hash key-length))
+           (iv&rest (salsa20--split-at (cadr key&rest) iv-length)))
+      ;; Destructive clear password area.
+      (fillarray data nil)
+      (list (vconcat (car key&rest)) (vconcat (car iv&rest))))))
+
+(defun salsa20--password-to-key&iv (password salt)
+  (salsa20--openssl-evp-bytes-to-key 8 16 password salt))
+
+(defvar salsa20--password nil)
+(defun salsa20--read-passwd (prompt &optional confirm)
+  (let ((text (or salsa20--password (read-passwd prompt confirm))))
+    (prog1
+        (vconcat text)
+      (clear-string text))))
+
+;;TODO consider algorithm arg key length may have 32/16
 ;;;###autoload
 (defun salsa20-encrypt-string (string &optional coding-system)
-  "Encrypt STRING by password.
-TODO"
+  "Encrypt STRING by password with prompt.
+
+TODO sample clear STRING"
   (let ((bytes (cond
                 ((not (multibyte-string-p string))
                  string)
@@ -425,57 +478,36 @@ TODO"
                 (t
                  (string-as-unibyte string)))))
     (let* ((salt (salsa20--generate-random-bytes 8))
-           (pass (read-passwd "Password to encrypt: " t)))
-      ;;TODO
-      (require 'kaesar)
+           (pass (salsa20--read-passwd "Password to encrypt: " t)))
       (destructuring-bind (raw-key iv)
-          (kaesar--openssl-evp-bytes-to-key-0
-           ;;TODO
-           8 16
-           ;;TODO
-           (vconcat pass) salt)
+          (salsa20--password-to-key&iv pass salt)
         (apply 
          'unibyte-string
          (append
-          (string-to-list "Salted__")
-          salt
-          (string-to-list (salsa20-encrypt bytes raw-key iv))))))))
+          "Salted__" salt
+          (salsa20-encrypt bytes raw-key iv)
+          nil))))))
 
 ;;;###autoload
 (defun salsa20-decrypt-string (string &optional coding-system)
-  "Decrypt STRING by password."
+  "Decrypt STRING by password with prompt."
+  (when (multibyte-string-p string)
+    (error "Not a unibyte string"))
   (unless (string-match "\\`Salted__\\(.\\{8\\}\\)" string)
-    (error "TODO Not salted string"))
-  (let ((pass (read-passwd "Password to decrypt: "))
+    (error "Not a salted string"))
+  (let ((pass (salsa20--read-passwd "Password to decrypt: "))
         (salt (match-string 1 string))
         (body (substring string (match-end 0))))
-    ;;TODO
-    (require 'kaesar)
     (destructuring-bind (raw-key iv)
-        (kaesar--openssl-evp-bytes-to-key-0
-         ;;TODO
-         8 16
-         ;;TODO
-         (vconcat pass) salt)
+        (salsa20--password-to-key&iv pass salt)
       (let ((bytes (salsa20-decrypt body raw-key iv)))
         (cond
          (coding-system
           (decode-coding-string bytes coding-system))
          ((default-value 'enable-multibyte-characters)
-          ;;TODO only multibyte environment
           (string-as-multibyte bytes))
          (t
           bytes))))))
-
-;;TODO
-;; (defun salsa20-password-to-key (password salt)
-;;   (secure-hash 'sha256 ))
-
-;;TODO
-;;;;###autoload
-;; (defun salsa20-hash (object &optional coding-system start end)
-;;   "todo Core function to create 64-byte hash like `secure-hash'"
-;;   (salsa20--hash ))
 
 (provide 'salsa20)
 

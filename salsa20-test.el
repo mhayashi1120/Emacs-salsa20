@@ -181,3 +181,19 @@
            (IV (make-vector 8 0))
            (E (salsa20-encrypt M K IV)))
       (should (equal (salsa20-decrypt E K IV) M)))))
+
+(ert-deftest encrypt-string-001 ()
+  "todo."
+  (let* ((M "あいうえお")
+         (E (let ((salsa20--password "d"))
+              (salsa20-encrypt-string (concat M))))
+         (M2 (let ((salsa20--password "d"))
+               (salsa20-decrypt-string E))))
+    (should (equal M M2)))
+
+  (let* ((M "あいうえお")
+         (E (let ((salsa20--password "d"))
+              (salsa20-encrypt-string (concat M) 'shift_jis)))
+         (M2 (let ((salsa20--password "d"))
+               (salsa20-decrypt-string E 'shift_jis))))
+    (should (equal M M2))))
