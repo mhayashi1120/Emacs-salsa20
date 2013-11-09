@@ -1,8 +1,8 @@
-;;; salsa.el --- Salsa20 Encrypt/Hash/Expansion algorithm -*- lexical-binding: t -*-
+;;; salsa.el --- Salsa20 Encrypt/Hash algorithm -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: TODO https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
+;; URL: https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
 ;; Version: 0.0.1
 ;; Package-Requires: ()
@@ -43,7 +43,6 @@
 ;;todo
 
 ;;; TODO:
-;; * clear secret data from function literal
 
 ;;; Code:
 
@@ -140,7 +139,7 @@
          (at (- len n))
          (tail (last list at))
          (top (nbutlast list at)))
-    (list top tail)))
+    (cons top tail)))
 
 ;;
 ;; 2. Words
@@ -332,9 +331,10 @@
     (error "invalid `n' length (Must be 16-byte)"))
   (unless (memq (length k) '(16 32))
     (error "Not a supported key length (16 or 32 bytes)"))
-  ;; TODO 16word will be cleared in `salsa20--hash'
   (let ((kw (salsa20--bytes-to-word k))
         (nw (salsa20--bytes-to-word n))
+        ;; literal vector to reuse
+        ;; This will be cleared in `salsa20--hash'
         (16word [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]))
     (cond
      ((= (length k) 16)
@@ -342,7 +342,7 @@
      ((= (length k) 32)
       (salsa20--read-sigma-16word! 16word kw nw))
      (t
-      (error "assert")))
+      (assert nil nil "Invalid key length")))
     (salsa20--hash 16word rounds)))
 
 ;;
@@ -443,19 +443,28 @@ ROUNDS: Optional integer to reduce the number of rounds.
 ;; Although, `openssl' command not support salsa20 algorithm.
 (defun salsa20--openssl-evp-bytes-to-key (iv-length key-length data salt)
   (let ((hash (loop with prev = nil
+                    ;; md5 create 16 bytes
                     for i below (+ iv-length key-length) by 16
                     append (let ((context (append prev data salt nil)))
                              (setq prev (salsa20--md5-digest context))
                              ;; clone
                              (append prev nil)))))
     (let* ((key&rest (salsa20--split-at hash key-length))
-           (iv&rest (salsa20--split-at (cadr key&rest) iv-length)))
+           (iv&rest (salsa20--split-at (cdr key&rest) iv-length)))
       ;; Destructive clear password area.
       (fillarray data nil)
       (list (vconcat (car key&rest)) (vconcat (car iv&rest))))))
 
-(defun salsa20--password-to-key&iv (password salt)
-  (salsa20--openssl-evp-bytes-to-key 8 16 password salt))
+(defun salsa20--password-to-key&iv (password salt &optional key-length)
+  ;; already check key-length
+  (salsa20--openssl-evp-bytes-to-key
+   8 (or key-length 16)
+   password salt))
+
+(defun salsa20--check-key-length (key-length)
+  (when (and key-length
+             (not (memq key-length '(16 32))))
+    (error "Invalid key length %s" key-length)))
 
 (defvar salsa20--password nil)
 (defun salsa20--read-passwd (prompt &optional confirm)
@@ -464,12 +473,11 @@ ROUNDS: Optional integer to reduce the number of rounds.
         (vconcat text)
       (clear-string text))))
 
-;;TODO consider algorithm arg key length may have 32/16
 ;;;###autoload
-(defun salsa20-encrypt-string (string &optional coding-system)
+(defun salsa20-encrypt-string (string &optional coding-system key-length)
   "Encrypt STRING by password with prompt.
-
-TODO sample clear STRING"
+STRING will be destroyed after the encryption."
+  (salsa20--check-key-length key-length)
   (let ((bytes (cond
                 ((not (multibyte-string-p string))
                  string)
@@ -480,7 +488,7 @@ TODO sample clear STRING"
     (let* ((salt (salsa20--generate-random-bytes 8))
            (pass (salsa20--read-passwd "Password to encrypt: " t)))
       (destructuring-bind (raw-key iv)
-          (salsa20--password-to-key&iv pass salt)
+          (salsa20--password-to-key&iv pass salt key-length)
         (apply 
          'unibyte-string
          (append
@@ -489,17 +497,19 @@ TODO sample clear STRING"
           nil))))))
 
 ;;;###autoload
-(defun salsa20-decrypt-string (string &optional coding-system)
-  "Decrypt STRING by password with prompt."
+(defun salsa20-decrypt-string (string &optional coding-system key-length)
+  "Decrypt STRING by password with prompt.
+STRING will be destroyed after the decryption."
   (when (multibyte-string-p string)
     (error "Not a unibyte string"))
   (unless (string-match "\\`Salted__\\(.\\{8\\}\\)" string)
     (error "Not a salted string"))
+  (salsa20--check-key-length key-length)
   (let ((pass (salsa20--read-passwd "Password to decrypt: "))
         (salt (match-string 1 string))
         (body (substring string (match-end 0))))
     (destructuring-bind (raw-key iv)
-        (salsa20--password-to-key&iv pass salt)
+        (salsa20--password-to-key&iv pass salt key-length)
       (let ((bytes (salsa20-decrypt body raw-key iv)))
         (cond
          (coding-system
