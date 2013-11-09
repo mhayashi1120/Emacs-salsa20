@@ -128,6 +128,7 @@
                   (salsa20-test--concat-byteseq-16word "88;118;104; 54; 79;201;235; 79; 3; 81;156; 47;203; 26;244;243;191;187;234;136;211;159; 13;115; 76; 55; 82;183; 3;117;222; 37;86; 16;179;207; 49;237;179; 48; 1;106;178;219;175;199;166; 48;238; 55;204; 36; 31;240; 32; 63; 15; 83; 93;161;116;147; 48;113"))
                  (salsa20-test--concat-byteseq "179; 19; 48;202;219;236;232;135;111;155;110; 18; 24;232; 95;158;26;110;170;154;109; 42;178;168;156;240;248;238;168;196;190;203;69;144; 51; 57; 29; 29;150; 26;150; 30;235;249;190;163;251; 48;27;111;114;114;118; 40;152;157;180; 57; 27; 94;107; 42;236; 35"))))
 
+;; Spent too many time...
 ;; (should (equal (loop with seq = (salsa20-test--concat-byteseq "6;124; 83;146; 38;191; 9; 50; 4;161; 47;222;122;182;223;185;75; 27; 0;216; 16;122; 7; 89;162;104;101;147;213; 21; 54; 95;225;253;139;176;105;132; 23;116; 76; 41;176;207;221; 34;157;108;94; 94; 99; 52; 90;117; 91;220;146;190;239;143;196;176;130;186")
 ;;                      repeat 1000000
 ;;                      do (setq seq (salsa20--hash seq))
@@ -173,7 +174,7 @@
         finally return s))
 
 (ert-deftest encrypt-001 ()
-  "todo."
+  "random encrypt"
   :tags '(salsa20)
   (dotimes (_ 10)
     (let* ((M (salsa20-test--random-string))
@@ -183,7 +184,8 @@
       (should (equal (salsa20-decrypt E K IV) M)))))
 
 (ert-deftest encrypt-string-001 ()
-  "todo."
+  "Normal encrypt/decrypt text"
+  :tags '(salsa20)
   (let* ((M "あいうえお")
          (E (let ((salsa20--password "d"))
               (salsa20-encrypt-string (concat M))))
@@ -191,9 +193,24 @@
                (salsa20-decrypt-string E))))
     (should (equal M M2)))
 
-  (let* ((M "あいうえお")
+  (let* ((M "かきくけこ")
          (E (let ((salsa20--password "d"))
               (salsa20-encrypt-string (concat M) 'shift_jis)))
          (M2 (let ((salsa20--password "d"))
                (salsa20-decrypt-string E 'shift_jis))))
+    (should (equal M M2)))
+
+  (let* ((M "さしすせそ")
+         (E (let ((salsa20--password "d"))
+              (salsa20-encrypt-string (concat M) nil 16)))
+         (M2 (let ((salsa20--password "d"))
+               (salsa20-decrypt-string E nil 16))))
     (should (equal M M2))))
+
+(ert-deftest encrypt-string-002 ()
+  "check validation is working."
+  :tags '(salsa20)
+  (should-error (salsa20-decrypt-string "あ"))
+  (should-error (salsa20-decrypt-string "No Salt"))
+  (should-error (salsa20-encrypt-string "" nil 7))
+  (should-error (salsa20-decrypt-string "" nil 7)))
