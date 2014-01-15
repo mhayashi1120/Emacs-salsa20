@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.1
+;; Version: 0.0.2
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -501,7 +501,7 @@ STRING will be destroyed after the encryption."
 STRING will be destroyed after the decryption."
   (when (multibyte-string-p string)
     (error "Not a unibyte string"))
-  (unless (string-match "\\`Salted__\\(.\\{8\\}\\)" string)
+  (unless (string-match "\\`Salted__\\([\000-\377]\\{8\\}\\)" string)
     (error "Not a salted string"))
   (salsa20--check-key-length key-length)
   (let ((pass (salsa20--read-passwd "Password to decrypt: "))
