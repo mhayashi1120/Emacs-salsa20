@@ -1,5 +1,6 @@
 (require 'ert)
 
+(require 'cl-lib)
 (require 'salsa20)
 
 (defun salsa20-test--hex (hex)
@@ -14,11 +15,11 @@
 
 (defun salsa20-test--concat-byteseq-16word (text)
   (vconcat
-   (loop for bs on (salsa20-test--concat-byteseq text)
-         by (lambda (x) (nthcdr 4 x))
-         collect (salsa20--littleendian
-                  (nth 0 bs) (nth 1 bs)
-                  (nth 2 bs) (nth 3 bs)))))
+   (cl-loop for bs on (salsa20-test--concat-byteseq text)
+            by (lambda (x) (nthcdr 4 x))
+            collect (salsa20--littleendian
+                     (nth 0 bs) (nth 1 bs)
+                     (nth 2 bs) (nth 3 bs)))))
 
 (ert-deftest sum-001 ()
   "todo."
@@ -69,8 +70,8 @@
 
 (defun salsa20-test--16word (text)
   (vconcat
-   (loop for x in (split-string text "[; ]" t)
-         collect (salsa20-test--hex x))))
+   (cl-loop for x in (split-string text "[; ]" t)
+            collect (salsa20-test--hex x))))
 
 (ert-deftest rowround-001 ()
   "todo."
@@ -129,7 +130,7 @@
                  (salsa20-test--concat-byteseq "179; 19; 48;202;219;236;232;135;111;155;110; 18; 24;232; 95;158;26;110;170;154;109; 42;178;168;156;240;248;238;168;196;190;203;69;144; 51; 57; 29; 29;150; 26;150; 30;235;249;190;163;251; 48;27;111;114;114;118; 40;152;157;180; 57; 27; 94;107; 42;236; 35"))))
 
 ;; Spent too many time...
-;; (should (equal (loop with seq = (salsa20-test--concat-byteseq "6;124; 83;146; 38;191; 9; 50; 4;161; 47;222;122;182;223;185;75; 27; 0;216; 16;122; 7; 89;162;104;101;147;213; 21; 54; 95;225;253;139;176;105;132; 23;116; 76; 41;176;207;221; 34;157;108;94; 94; 99; 52; 90;117; 91;220;146;190;239;143;196;176;130;186")
+;; (should (equal (cl-loop with seq = (salsa20-test--concat-byteseq "6;124; 83;146; 38;191; 9; 50; 4;161; 47;222;122;182;223;185;75; 27; 0;216; 16;122; 7; 89;162;104;101;147;213; 21; 54; 95;225;253;139;176;105;132; 23;116; 76; 41;176;207;221; 34;157;108;94; 94; 99; 52; 90;117; 91;220;146;190;239;143;196;176;130;186")
 ;;                      repeat 1000000
 ;;                      do (setq seq (salsa20--hash seq))
 ;;                      finally return seq)
@@ -144,9 +145,9 @@
      ;; Define k0 = (1; 2; 3; 4; 5; : : : ; 16), k1 = (201; 202; 203; 204; 205; : : : ; 216), and n =
      ;; (101; 102; 103; 104; 105; : : : ; 116). Then
      (vconcat
-      (loop for i from 1 to 16 collect i)
-      (loop for i from 201 to 216 collect i))
-     (vconcat (loop for i from 101 to 116 collect i)))
+      (cl-loop for i from 1 to 16 collect i)
+      (cl-loop for i from 201 to 216 collect i))
+     (vconcat (cl-loop for i from 101 to 116 collect i)))
     (salsa20-test--concat-byteseq "69; 37; 68; 39; 41; 15;107;193;255;139;122; 6;170;233;217; 98;89;144;182;106; 21; 51;200; 65;239; 49;222; 34;215;114; 40;126;104;197; 7;225;197;153; 31; 2;102; 78; 76;176; 84;245;246;184;177;160;133;130; 6; 72;149;119;192;195;132;236;234;103;246; 74")))
 
   (should
@@ -154,8 +155,8 @@
     (salsa20-expansion
      ;; Define k0 = (1; 2; 3; 4; 5; : : : ; 16), k1 = (201; 202; 203; 204; 205; : : : ; 216), and n =
      ;; (101; 102; 103; 104; 105; : : : ; 116). Then
-     (vconcat (loop for i from 1 to 16 collect i))
-     (vconcat (loop for i from 101 to 116 collect i)))
+     (vconcat (cl-loop for i from 1 to 16 collect i))
+     (vconcat (cl-loop for i from 101 to 116 collect i)))
     (salsa20-test--concat-byteseq "39;173; 46;248; 30;200; 82; 17; 48; 67;254;239; 37; 18; 13;247;241;200; 61;144; 10; 55; 50;185; 6; 47;246;253;143; 86;187;225;134; 85;110;246;161;163; 43;235;231; 94;171; 51;145;214;112; 29;14;232; 5; 16;151;140;183;141;171; 9;122;181;104;182;177;193"))))
 
 (ert-deftest internal-method-001 ()
@@ -168,10 +169,10 @@
 
 
 (defun salsa20-test--random-string ()
-  (loop with s = (make-string (random 200) ?\000)
-        for i from 0 below (length s)
-        do (aset s i (random 256))
-        finally return s))
+  (cl-loop with s = (make-string (random 200) ?\000)
+           for i from 0 below (length s)
+           do (aset s i (random 256))
+           finally return s))
 
 (ert-deftest encrypt-001 ()
   "random encrypt"

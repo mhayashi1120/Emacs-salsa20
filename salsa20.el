@@ -46,8 +46,7 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
+(require 'cl-lib)
 
 (defgroup salsa20 nil
   "Salsa20 encrypt/hash/expansion utilities."
@@ -76,16 +75,16 @@
     (vector (lsh ?\xff 0) (lsh ?\xff 8) (lsh ?\xff 16) (lsh ?\xff 24))))
 
 (defun salsa20--copy-16word! (to from)
-  (loop for i from 0 below 16
-        do (aset to i (aref from i))))
+  (cl-loop for i from 0 below 16
+           do (aset to i (aref from i))))
 
 (defun salsa20--memcpy! (dest dest-from src src-from byte)
-  (loop repeat byte
-        for di from dest-from
-        for si from src-from
-        do (aset dest di (aref src si))))
+  (cl-loop repeat byte
+           for di from dest-from
+           for si from src-from
+           do (aset dest di (aref src si))))
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--word-to-4bytes (word)
     (list (lsh (logand word (aref salsa20--byte-table 0))   0)
           (lsh (logand word (aref salsa20--byte-table 1))  -8)
@@ -93,46 +92,46 @@
           (lsh (logand word (aref salsa20--byte-table 3)) -24))))
 
 (defun salsa20--16word-to-bytes (16word)
-  (loop for x across 16word
-        append (salsa20--word-to-4bytes x)))
+  (cl-loop for x across 16word
+           append (salsa20--word-to-4bytes x)))
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--sum (word1 word2)
     (logand (+ word1 word2) salsa20-word-max)))
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--xor (word1 word2)
     (logxor word1 word2)))
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--sum-16word! (words1 words2)
-    (loop for w1 across words1
-          for w2 across words2
-          for i from 0
-          do (aset words1 i (salsa20--sum w1 w2))
-          finally return words1)))
+    (cl-loop for w1 across words1
+             for w2 across words2
+             for i from 0
+             do (aset words1 i (salsa20--sum w1 w2))
+             finally return words1)))
 
 (defun salsa20--xor-vector! (vector list)
-  (loop for i from 0
-        for v1 across vector
-        for l1 in list
-        do (aset vector i (logxor v1 l1))
-        finally return vector))
+  (cl-loop for i from 0
+           for v1 across vector
+           for l1 in list
+           do (aset vector i (logxor v1 l1))
+           finally return vector))
 
 (defun salsa20--xor-list (list1 list2)
-  (loop for x1 in list1
-        for x2 in list2
-        collect (logxor x1 x2)))
+  (cl-loop for x1 in list1
+           for x2 in list2
+           collect (logxor x1 x2)))
 
 ;;
 ;; Misc utilities
 ;;
 
 (defun salsa20--md5-digest (data)
-  (loop with unibytes = (apply 'unibyte-string data)
-        with md5-hash = (md5 unibytes)
-        for i from 0 below (length md5-hash) by 2
-        collect (string-to-number (substring md5-hash i (+ i 2)) 16)))
+  (cl-loop with unibytes = (apply 'unibyte-string data)
+           with md5-hash = (md5 unibytes)
+           for i from 0 below (length md5-hash) by 2
+           collect (string-to-number (substring md5-hash i (+ i 2)) 16)))
 
 (defun salsa20--split-at (list n)
   (let* ((len (length list))
@@ -145,7 +144,7 @@
 ;; 2. Words
 ;;
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--left-shift (word shift)
     ;; shift must be `shift < 32'
     (logior
@@ -170,7 +169,7 @@
     (aset res 3 z3)
     res))
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--quarter-quarterround! (x target src1 src2 shift-count)
     (let* ((sum (salsa20--sum (aref x src1) (aref x src2)))
            (shift (salsa20--left-shift sum shift-count))
@@ -181,7 +180,7 @@
 ;; 4. The rowround function (16-word -> 16-word)
 ;;
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--rowround! (y)
     (salsa20--quarter-quarterround! y  1  0  3  7)
     (salsa20--quarter-quarterround! y  2  1  0  9)
@@ -205,7 +204,7 @@
 ;; 5. The columnround function (16-word -> 16-word)
 ;;
 
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--columnround! (x)
     (salsa20--quarter-quarterround! x  4  0 12  7)
     (salsa20--quarter-quarterround! x  8  4  0  9)
@@ -230,7 +229,7 @@
 ;;
 
 ;; Not used
-(eval-when-compile
+(eval-and-compile
   (defsubst salsa20--doubleround! (x)
     (salsa20--columnround! x)
     (salsa20--rowround! x)
@@ -255,21 +254,21 @@
 (defun salsa20--hash (16word &optional rounds)
   (unless rounds
     (setq rounds 20))
-  (loop with initial = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
-        ;; clone working vector to preserve initial vector
-        initially (salsa20--copy-16word! initial 16word)
-        for r from 0 below rounds
-        if (zerop (logand r 1))
-        do (salsa20--columnround! 16word)
-        else
-        do (salsa20--rowround! 16word)
-        finally return
-        (progn
-          (salsa20--sum-16word! 16word initial)
-          (prog1
-              (salsa20--16word-to-bytes 16word)
-            (fillarray 16word 0)
-            (fillarray initial 0)))))
+  (cl-loop with initial = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+           ;; clone working vector to preserve initial vector
+           initially (salsa20--copy-16word! initial 16word)
+           for r from 0 below rounds
+           if (zerop (logand r 1))
+           do (salsa20--columnround! 16word)
+           else
+           do (salsa20--rowround! 16word)
+           finally return
+           (progn
+             (salsa20--sum-16word! 16word initial)
+             (prog1
+                 (salsa20--16word-to-bytes 16word)
+               (fillarray 16word 0)
+               (fillarray initial 0)))))
 
 ;;
 ;; 9. The Salsa20 expansion function
@@ -318,13 +317,13 @@
     (aset 16word 15 (aref tau 3))))
 
 (defun salsa20--bytes-to-word (bytes)
-  (loop with v = (make-vector (/ (length bytes) 4) nil)
-        for i from 0 below (length bytes) by 4
-        for j from 0
-        do (aset v j (salsa20--littleendian
-                      (aref bytes (+ i 0)) (aref bytes (+ i 1))
-                      (aref bytes (+ i 2)) (aref bytes (+ i 3))))
-        finally return v))
+  (cl-loop with v = (make-vector (/ (length bytes) 4) nil)
+           for i from 0 below (length bytes) by 4
+           for j from 0
+           do (aset v j (salsa20--littleendian
+                         (aref bytes (+ i 0)) (aref bytes (+ i 1))
+                         (aref bytes (+ i 2)) (aref bytes (+ i 3))))
+           finally return v))
 
 (defun salsa20-expansion (k n &optional rounds)
   (unless (= (length n) 16)
@@ -342,7 +341,7 @@
      ((= (length k) 32)
       (salsa20--read-sigma-16word! 16word kw nw))
      (t
-      (assert nil nil "Invalid key length")))
+      (cl-assert nil nil "Invalid key length")))
     (salsa20--hash 16word rounds)))
 
 ;;
@@ -350,19 +349,19 @@
 ;;
 
 (defun salsa20--inc-ushort! (vector start)
-  (loop repeat 8 for i from start
-        do (let ((n (logand (1+ (aref vector i)) ?\xff)))
-             (aset vector i n))
-        unless (zerop (aref vector i))
-        return nil)
+  (cl-loop repeat 8 for i from start
+           do (let ((n (logand (1+ (aref vector i)) ?\xff)))
+                (aset vector i n))
+           unless (zerop (aref vector i))
+           return nil)
   vector)
 
 
 (defun salsa20--generate-random-bytes (size)
-  (loop with v = (make-vector size nil)
-        for i below size
-        do (aset v i (random ?\x100))
-        finally return v))
+  (cl-loop with v = (make-vector size nil)
+           for i below size
+           do (aset v i (random ?\x100))
+           finally return v))
 
 ;;;###autoload
 (defun salsa20-generate-random-iv ()
@@ -382,8 +381,8 @@ Optional ROUNDS arg see `salsa20-encrypt' description.
 Sample:
 \(let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
   (unwind-protect
-      (loop repeat 5
-            collect (funcall generator 50))
+      (cl-loop repeat 5
+               collect (funcall generator 50))
     ;; Should not forget destruct
     (funcall generator t)))
 "
@@ -399,8 +398,8 @@ Sample:
        ((eq command t)
         (fillarray i 0)
         (fillarray n 0)
-        (loop for r on remain
-              do (setcar r 0)))
+        (cl-loop for r on remain
+                 do (setcar r 0)))
        ((not (numberp command))
         (error "Not supported command %s" command))
        ((zerop command)
@@ -436,19 +435,19 @@ ROUNDS: Optional integer to reduce the number of rounds.
 (defalias 'salsa20-decrypt 'salsa20-encrypt)
 
 ;;;
-;;; Encrypt/Decrypt encoded string
+;;; Encrypt/Decrypt encoded string by password
 ;;;
 
 ;; Emulate openssl EVP_BytesToKey function
 ;; Although, `openssl' command not support salsa20 algorithm.
 (defun salsa20--openssl-evp-bytes-to-key (iv-length key-length data salt)
-  (let ((hash (loop with prev = nil
-                    ;; md5 create 16 bytes
-                    for i below (+ iv-length key-length) by 16
-                    append (let ((context (append prev data salt nil)))
-                             (setq prev (salsa20--md5-digest context))
-                             ;; clone
-                             (append prev nil)))))
+  (let ((hash (cl-loop with prev = nil
+                       ;; md5 create 16 bytes
+                       for i below (+ iv-length key-length) by 16
+                       append (let ((context (append prev data salt nil)))
+                                (setq prev (salsa20--md5-digest context))
+                                ;; clone
+                                (append prev nil)))))
     (let* ((key&rest (salsa20--split-at hash key-length))
            (iv&rest (salsa20--split-at (cdr key&rest) iv-length)))
       ;; Destructive clear password area.
@@ -487,7 +486,7 @@ STRING will be destroyed after the encryption."
                  (string-as-unibyte string)))))
     (let* ((salt (salsa20--generate-random-bytes 8))
            (pass (salsa20--read-passwd "Password to encrypt: " t)))
-      (destructuring-bind (raw-key iv)
+      (cl-destructuring-bind (raw-key iv)
           (salsa20--password-to-key&iv pass salt key-length)
         (apply 
          'unibyte-string
@@ -508,7 +507,7 @@ STRING will be destroyed after the decryption."
   (let ((pass (salsa20--read-passwd "Password to decrypt: "))
         (salt (match-string 1 string))
         (body (substring string (match-end 0))))
-    (destructuring-bind (raw-key iv)
+    (cl-destructuring-bind (raw-key iv)
         (salsa20--password-to-key&iv pass salt key-length)
       (let ((bytes (salsa20-decrypt body raw-key iv)))
         (cond
