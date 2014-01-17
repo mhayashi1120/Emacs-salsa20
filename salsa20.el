@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -58,7 +58,7 @@
 
 ;;
 ;; Utilities bytewise operation
-;; 
+;;
 
 (eval-and-compile
   (defconst salsa20-word-range
@@ -488,7 +488,7 @@ STRING will be destroyed after the encryption."
            (pass (salsa20--read-passwd "Password to encrypt: " t)))
       (cl-destructuring-bind (raw-key iv)
           (salsa20--password-to-key&iv pass salt key-length)
-        (apply 
+        (apply
          'unibyte-string
          (append
           "Salted__" salt
