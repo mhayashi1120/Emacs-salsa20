@@ -6,7 +6,7 @@ Salsa20 Encrypt/Hash algorithm for Emacs
 ## Install:
 
 Put this file into load-path'ed directory, and
-!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
+```!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!```
 And put the following expression into your .emacs.
 
 (require 'salsa20)
