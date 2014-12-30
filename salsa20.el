@@ -25,7 +25,7 @@
 ;; ## Install:
 
 ;; Put this file into load-path'ed directory, and
-;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
+;; ```!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!```
 ;; And put the following expression into your .emacs.
 
 ;; (require 'salsa20)
@@ -61,12 +61,14 @@
 ;;  Optional ROUNDS arg see `salsa20-encrypt` description.
  
 ;;  Sample:
+;; ```
 ;;     (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
 ;;       (unwind-protect
 ;;           (loop repeat 5
 ;;                 collect (funcall generator 50))
 ;;         ;; Should not forget destruct
 ;;         (funcall generator t)))
+;; ```
 
 ;; TODO:
 
