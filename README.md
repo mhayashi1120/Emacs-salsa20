@@ -1,7 +1,13 @@
-Summary
-========
+salsa20.el
+==========
 
 Salsa20 Encrypt/Hash algorithm for Emacs
+
+Salsa20 basic implementation
+http://cr.yp.to/snuffle/spec.pdf
+
+Salsa20/8 Salsa20/12
+http://cr.yp.to/snuffle/812.pdf
 
 ## Install:
 
@@ -10,14 +16,6 @@ Put this file into load-path'ed directory, and
 And put the following expression into your .emacs.
 
 (require 'salsa20)
-
-## Commentary:
-
-Salsa20 basic implementation
-http://cr.yp.to/snuffle/spec.pdf
-
-Salsa20/8 Salsa20/12
-http://cr.yp.to/snuffle/812.pdf
 
 ## Functions:
 
@@ -35,12 +33,12 @@ http://cr.yp.to/snuffle/812.pdf
 
  Return a function which generate random sequence as byte list.
  This function accept following one of arg indicate the command of this function.
- 
+
  * length of the byte list.
  * `t` means destruct this function.
- 
+
  Optional ROUNDS arg see `salsa20-encrypt` description.
- 
+
  Sample:
 ```
     (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))

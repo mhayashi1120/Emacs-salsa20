@@ -5,7 +5,7 @@
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
 ;; Version: 0.0.4
-;; Package-Requires: ()
+;; Package-Requires: ((emacs "24") (cl-lib "0.5"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -22,6 +22,14 @@
 ;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
 ;; Boston, MA 02110-1301, USA.
 
+;;; Commentary:
+
+;; Salsa20 basic implementation
+;; http://cr.yp.to/snuffle/spec.pdf
+
+;; Salsa20/8 Salsa20/12
+;; http://cr.yp.to/snuffle/812.pdf
+
 ;; ## Install:
 
 ;; Put this file into load-path'ed directory, and
@@ -29,14 +37,6 @@
 ;; And put the following expression into your .emacs.
 
 ;; (require 'salsa20)
-
-;; ## Commentary:
-
-;; Salsa20 basic implementation
-;; http://cr.yp.to/snuffle/spec.pdf
-
-;; Salsa20/8 Salsa20/12
-;; http://cr.yp.to/snuffle/812.pdf
 
 ;; ## Functions:
 
@@ -54,12 +54,12 @@
 
 ;;  Return a function which generate random sequence as byte list.
 ;;  This function accept following one of arg indicate the command of this function.
- 
+
 ;;  * length of the byte list.
 ;;  * `t` means destruct this function.
- 
+
 ;;  Optional ROUNDS arg see `salsa20-encrypt` description.
- 
+
 ;;  Sample:
 ;; ```
 ;;     (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
@@ -76,13 +76,13 @@
 
 (require 'cl-lib)
 
+(when (zerop (lsh 1 32))
+  (error "This Emacs doesn't support wide-int"))
+
 (defgroup salsa20 nil
   "Salsa20 encrypt/hash/expansion utilities."
   :prefix "salsa20-"
   :group 'data)
-
-(when (zerop (lsh 1 32))
-  (error "This Emacs doesn't support wide-int"))
 
 ;;
 ;; Utilities bytewise operation
@@ -391,6 +391,18 @@
            do (aset v i (random ?\x100))
            finally return v))
 
+;;;
+;;; Extensions
+;;;
+
+(eval-and-compile
+  (defconst salsa20--openssl-magic-word "Salted__"))
+
+(defconst salsa20--openssl-magic-salt-regexp
+  (eval-when-compile
+    (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
+            salsa20--openssl-magic-word 8)))
+
 ;;;###autoload
 (defun salsa20-generate-random-iv ()
   "Utility function to create randomized initial vector (IV)."
@@ -519,32 +531,34 @@ STRING will be destroyed after the encryption."
         (apply
          'unibyte-string
          (append
-          "Salted__" salt
+          salsa20--openssl-magic-word
+          salt
           (salsa20-encrypt bytes raw-key iv)
           nil))))))
 
 ;;;###autoload
 (defun salsa20-decrypt-string (string &optional coding-system key-length)
   "Decrypt STRING by password with prompt.
-STRING will be destroyed after the decryption."
+STRING will be destroyed after the decryption.
+"
   (when (multibyte-string-p string)
     (error "Not a unibyte string"))
-  (unless (string-match "\\`Salted__\\([\000-\377]\\{8\\}\\)" string)
+  (unless (string-match salsa20--openssl-magic-salt-regexp string)
     (error "Not a salted string"))
-  (salsa20--check-key-length key-length)
-  (let ((pass (salsa20--read-passwd "Password to decrypt: "))
-        (salt (match-string 1 string))
+  (let ((salt (match-string 1 string))
         (body (substring string (match-end 0))))
-    (cl-destructuring-bind (raw-key iv)
-        (salsa20--password-to-key&iv pass salt key-length)
-      (let ((bytes (salsa20-decrypt body raw-key iv)))
-        (cond
-         (coding-system
-          (decode-coding-string bytes coding-system))
-         ((default-value 'enable-multibyte-characters)
-          (string-as-multibyte bytes))
-         (t
-          bytes))))))
+    (salsa20--check-key-length key-length)
+    (let ((pass (salsa20--read-passwd "Password to decrypt: ")))
+      (cl-destructuring-bind (raw-key iv)
+          (salsa20--password-to-key&iv pass salt key-length)
+        (let ((bytes (salsa20-decrypt body raw-key iv)))
+          (cond
+           (coding-system
+            (decode-coding-string bytes coding-system))
+           ((default-value 'enable-multibyte-characters)
+            (string-as-multibyte bytes))
+           (t
+            bytes)))))))
 
 (provide 'salsa20)
 
