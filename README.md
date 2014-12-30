@@ -41,11 +41,12 @@ http://cr.yp.to/snuffle/812.pdf
  
  Optional ROUNDS arg see `salsa20-encrypt` description.
  
- Sample:
- 
+Sample:
+```
     (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
       (unwind-protect
           (loop repeat 5
                 collect (funcall generator 50))
         ;; Should not forget destruct
         (funcall generator t)))
+```
