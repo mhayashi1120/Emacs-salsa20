@@ -1,4 +1,4 @@
-;;; salsa.el --- Salsa20 Encrypt/Hash algorithm -*- lexical-binding: t -*-
+;;; salsa20.el --- Salsa20 Encrypt/Hash algorithm -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
