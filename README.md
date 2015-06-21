@@ -1,8 +1,6 @@
 salsa20.el
 ==========
 
-Salsa20 Encrypt/Hash algorithm for Emacs
-
 Salsa20 basic implementation
 http://cr.yp.to/snuffle/spec.pdf
 
@@ -12,10 +10,12 @@ http://cr.yp.to/snuffle/812.pdf
 ## Install:
 
 Put this file into load-path'ed directory, and
-```!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!```
+___!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!___
 And put the following expression into your .emacs.
 
+```
 (require 'salsa20)
+```
 
 ## Functions:
 
@@ -40,11 +40,14 @@ And put the following expression into your .emacs.
  Optional ROUNDS arg see `salsa20-encrypt` description.
 
  Sample:
+
 ```
-    (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
-      (unwind-protect
-          (loop repeat 5
-                collect (funcall generator 50))
-        ;; Should not forget destruct
-        (funcall generator t)))
+(let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
+  (unwind-protect
+      (cl-loop repeat 5
+               collect (funcall generator 50))
+    ;; Should not forget destruct
+    (funcall generator t)))
 ```
+
+

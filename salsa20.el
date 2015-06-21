@@ -2,10 +2,10 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: https://github.com/mhayashi1120/Emacs-salsa20/raw/master/salsa20.el
+;; URL: https://github.com/mhayashi1120/Emacs-salsa20
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.4
-;; Package-Requires: ((emacs "24") (cl-lib "0.5"))
+;; Version: 0.0.5
+;; Package-Requires: ((emacs "24") (cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -33,10 +33,10 @@
 ;; ## Install:
 
 ;; Put this file into load-path'ed directory, and
-;; ```!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!```
+;; ___!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!___
 ;; And put the following expression into your .emacs.
 
-;; (require 'salsa20)
+;;     (require 'salsa20)
 
 ;; ## Functions:
 
@@ -61,16 +61,16 @@
 ;;  Optional ROUNDS arg see `salsa20-encrypt` description.
 
 ;;  Sample:
-;; ```
+;;
 ;;     (let ((generator (salsa20-generator (make-vector 16 0) (salsa20-generate-random-iv))))
 ;;       (unwind-protect
-;;           (loop repeat 5
-;;                 collect (funcall generator 50))
+;;           (cl-loop repeat 5
+;;                    collect (funcall generator 50))
 ;;         ;; Should not forget destruct
 ;;         (funcall generator t)))
-;; ```
+;;
 
-;; TODO:
+;;; TODO:
 
 ;;; Code:
 
