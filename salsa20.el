@@ -523,7 +523,7 @@ STRING will be destroyed after the encryption."
                 (coding-system
                  (encode-coding-string string coding-system))
                 (t
-                 (string-as-unibyte string)))))
+                 (encode-coding-string string 'utf-8)))))
     (let* ((salt (salsa20--generate-random-bytes 8))
            (pass (salsa20--read-passwd "Password to encrypt: " t)))
       (cl-destructuring-bind (raw-key iv)
@@ -556,7 +556,7 @@ STRING will be destroyed after the decryption.
            (coding-system
             (decode-coding-string bytes coding-system))
            ((default-value 'enable-multibyte-characters)
-            (string-as-multibyte bytes))
+            (decode-coding-string bytes 'utf-8))
            (t
             bytes)))))))
 
