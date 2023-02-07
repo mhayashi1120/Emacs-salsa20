@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.6
+;; Version: 0.0.7
 ;; Package-Requires: ((emacs "24") (cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -76,7 +76,7 @@
 
 (require 'cl-lib)
 
-(when (zerop (lsh 1 32))
+(when (zerop (ash 1 32))
   (error "This Emacs doesn't support wide-int"))
 
 (defgroup salsa20 nil
