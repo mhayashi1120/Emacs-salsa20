@@ -5,7 +5,7 @@
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
 ;; Version: 0.0.7
-;; Package-Requires: ((emacs "24") (cl-lib "0.3"))
+;; Package-Requires: ((emacs "24.3") (cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
