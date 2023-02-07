@@ -91,7 +91,7 @@
 (eval-and-compile
   (defconst salsa20-word-range
     (eval-when-compile
-      (lsh 1 32))))
+      (ash 1 32))))
 
 (eval-and-compile
   (defconst salsa20-word-max
@@ -100,7 +100,7 @@
 
 (defconst salsa20--byte-table
   (eval-when-compile
-    (vector (lsh ?\xff 0) (lsh ?\xff 8) (lsh ?\xff 16) (lsh ?\xff 24))))
+    (vector (ash ?\xff 0) (ash ?\xff 8) (ash ?\xff 16) (ash ?\xff 24))))
 
 (defun salsa20--copy-16word! (to from)
   (cl-loop for i from 0 below 16
@@ -114,10 +114,10 @@
 
 (eval-and-compile
   (defsubst salsa20--word-to-4bytes (word)
-    (list (lsh (logand word (aref salsa20--byte-table 0))   0)
-          (lsh (logand word (aref salsa20--byte-table 1))  -8)
-          (lsh (logand word (aref salsa20--byte-table 2)) -16)
-          (lsh (logand word (aref salsa20--byte-table 3)) -24))))
+    (list (ash (logand word (aref salsa20--byte-table 0))   0)
+          (ash (logand word (aref salsa20--byte-table 1))  -8)
+          (ash (logand word (aref salsa20--byte-table 2)) -16)
+          (ash (logand word (aref salsa20--byte-table 3)) -24))))
 
 (defun salsa20--16word-to-bytes (16word)
   (cl-loop for x across 16word
@@ -176,8 +176,8 @@
   (defsubst salsa20--left-shift (word shift)
     ;; shift must be `shift < 32'
     (logior
-     (logand salsa20-word-max (lsh word shift))
-     (logand salsa20-word-max (lsh word (- shift 32))))))
+     (logand salsa20-word-max (ash word shift))
+     (logand salsa20-word-max (ash word (- shift 32))))))
 
 ;;
 ;; 3. The quarterround function
@@ -270,10 +270,10 @@
 (eval-and-compile
   (defun salsa20--littleendian (b0 b1 b2 b3)
     (logior
-     (lsh b0 0)
-     (lsh b1 8)
-     (lsh b2 16)
-     (lsh b3 24))))
+     (ash b0 0)
+     (ash b1 8)
+     (ash b2 16)
+     (ash b3 24))))
 
 ;;
 ;; 8. The Salsa20 hash function (64-byte unibyte list -> 64-byte unibyte list)
