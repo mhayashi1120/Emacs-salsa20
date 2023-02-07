@@ -4,14 +4,19 @@
 
 -include env.mk
 
-EMACS ?= emacs
 NEEDED-PACKAGES ?= s
-
-BATCH := $(EMACS) -Q -batch -L .
 
 EL := salsa20.el
 
 TEST_EL := salsa20-test.el
+
+##
+## Emacs
+##
+
+EMACS ?= emacs
+
+BATCH := $(EMACS) -Q -batch -L .
 
 ##
 ## package.el
