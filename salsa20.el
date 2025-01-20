@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.7
+;; Version: 0.0.8
 ;; Package-Requires: ((emacs "24") (cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -189,8 +189,8 @@
          (z2 (salsa20--xor y2 (salsa20--left-shift (salsa20--sum z1 y0) 9)))
          (z3 (salsa20--xor y3 (salsa20--left-shift (salsa20--sum z2 z1) 13)))
          (z0 (salsa20--xor y0 (salsa20--left-shift (salsa20--sum z3 z2) 18)))
-         ;; literal vector (destructively changed)
-         (res [nil nil nil nil]))
+         ;; working buffer vector (destructively changed)
+         (res (make-vector 4 nil)))
     (aset res 0 z0)
     (aset res 1 z1)
     (aset res 2 z2)
