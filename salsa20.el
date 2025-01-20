@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-salsa20
 ;; Emacs: GNU Emacs 24 or later (--with-wide-int)
-;; Version: 0.0.8
+;; Version: 0.0.9
 ;; Package-Requires: ((emacs "24") (cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -282,7 +282,7 @@
 (defun salsa20--hash (16word &optional rounds)
   (unless rounds
     (setq rounds 20))
-  (cl-loop with initial = [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  (cl-loop with initial = (make-vector 16 nil)
            ;; clone working vector to preserve initial vector
            initially (salsa20--copy-16word! initial 16word)
            for r from 0 below rounds
@@ -362,7 +362,7 @@
         (nw (salsa20--bytes-to-word n))
         ;; literal vector to reuse
         ;; This will be cleared in `salsa20--hash'
-        (16word [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]))
+        (16word (make-vector 16 nil)))
     (cond
      ((= (length k) 16)
       (salsa20--read-tau-16word! 16word kw nw))
@@ -430,7 +430,7 @@ Sample:
     (error "Invalid length of IV (Must be 8 byte)"))
   (unless (memq (length key) '(16 32))
     (error "Invalid length of KEY (Must be 16 or 32 byte)"))
-  (let* ((i [0 0 0 0 0 0 0 0])
+  (let* ((i (make-vector 8 0))
          (n (vconcat iv i))
          remain)
     (lambda (command)
